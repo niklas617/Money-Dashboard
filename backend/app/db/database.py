@@ -21,10 +21,19 @@ def _normalize_sqlite_url(url: str) -> str:
 
 DATABASE_URL = _normalize_sqlite_url(settings.database_url)
 
+
+# Wir definieren die Argumente standardmäßig leer (für PostgreSQL)
+connect_args = {}
+
+# Nur wenn wir SQLite benutzen (lokal), fügen wir den Spezial-Trick hinzu:
+if "sqlite" in DATABASE_URL:
+    connect_args = {"check_same_thread": False}
+
+# Jetzt erstellen wir die Engine mit den passenden Argumenten
 engine = create_engine(
     DATABASE_URL,
-    echo=settings.debug,
-    connect_args={"check_same_thread": False},
+    echo=True, # Kannst du auf False setzen für weniger Logs
+    connect_args=connect_args  # Hier übergeben wir die variable Einstellung
 )
 
 
