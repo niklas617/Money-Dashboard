@@ -1,41 +1,52 @@
 from __future__ import annotations
-
+import os
 from pathlib import Path
-
 from sqlmodel import SQLModel, create_engine
-
 from backend.app.core.settings import settings
 
+# 1. Die URL holen (entweder aus settings oder direkt aus den Umgebungsvariablen als Fallback)
+# Wir nutzen os.getenv als Sicherheitsnetz, falls settings.database_url leer ist
+DATABASE_URL = settings.database_url or os.getenv("DATABASE_URL")
 
-def _normalize_sqlite_url(url: str) -> str:
-    # Ensure a stable absolute path for sqlite files, independent of the current working directory.
-    # Accepts:
-    #   sqlite:///./dashboard.db   (relative)
-    #   sqlite:////abs/path.db     (absolute)
-    if url.startswith("sqlite:///./"):
-        base_dir = Path(__file__).resolve().parents[3]  # .../dashboard (project root)
-        db_file = base_dir / url.replace("sqlite:///./", "")
-        return f"sqlite:///{db_file.as_posix()}"
-    return url
+# --- DEBUG-HILFE FÜR RENDER (damit wir sehen, was los ist) ---
+print("-----------------------------------------------------")
+if not DATABASE_URL:
+    print("❌ ALARM: DATABASE_URL ist leer! Bitte in Render Environment Variables prüfen.")
+else:
+    # Wir zeigen nur die ersten 10 Zeichen, damit das Passwort geheim bleibt
+    print(f"✅ Lade Datenbank-URL: {DATABASE_URL[:10]}...")
+print("-----------------------------------------------------")
 
+# 2. Fix für Neon/Postgres (WICHTIG!)
+# SQLAlchemy braucht 'postgresql://', aber Neon liefert oft 'postgres://'
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-DATABASE_URL = _normalize_sqlite_url(settings.database_url)
-
-
-# Wir definieren die Argumente standardmäßig leer (für PostgreSQL)
-connect_args = {}
-
-# Nur wenn wir SQLite benutzen (lokal), fügen wir den Spezial-Trick hinzu:
-if "sqlite" in DATABASE_URL:
+# 3. SQLite-Spezialbehandlung (nur für lokal)
+if "sqlite" in str(DATABASE_URL):
+    # Pfad korrigieren (dein alter Code)
+    if DATABASE_URL.startswith("sqlite:///./"):
+        base_dir = Path(__file__).resolve().parents[3]
+        db_file = base_dir / DATABASE_URL.replace("sqlite:///./", "")
+        DATABASE_URL = f"sqlite:///{db_file.as_posix()}"
+    
+    # SQLite braucht diesen Parameter
     connect_args = {"check_same_thread": False}
+else:
+    # PostgreSQL braucht diesen Parameter NICHT (das war der Fehler vorhin)
+    connect_args = {}
 
-# Jetzt erstellen wir die Engine mit den passenden Argumenten
-engine = create_engine(
-    DATABASE_URL,
-    echo=True, # Kannst du auf False setzen für weniger Logs
-    connect_args=connect_args  # Hier übergeben wir die variable Einstellung
-)
-
+# 4. Engine erstellen
+# Wir fangen Fehler ab, falls die URL immer noch Quatsch ist
+try:
+    engine = create_engine(
+        DATABASE_URL,
+        echo=True,
+        connect_args=connect_args
+    )
+except Exception as e:
+    print(f"❌ Kritisches Problem beim Erstellen der Engine: {e}")
+    raise e
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
