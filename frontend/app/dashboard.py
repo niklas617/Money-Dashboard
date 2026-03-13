@@ -185,12 +185,17 @@ def main_dashboard():
             fig_bar.update_layout(bargap=0.6)
             st.plotly_chart(fig_bar, width="stretch")
 
-            c_pie1, c_pie2 = st.columns(2)
-            with c_pie1:
+         with c_pie1:
                 st.subheader("Einnahmen 📈")
                 df_inc = df[df["amount"] > 0]
                 if not df_inc.empty:
-                    fig_inc = px.pie(df_inc, values="Einnahmen", names="Kategorie", hole=0.4)
+                    fig_inc = px.pie(
+                        df_inc, 
+                        values="amount", 
+                        names="Kategorie", 
+                        hole=0.4,
+                        labels={"amount": "Einnahmen"}  # <-- HIER ist der Trick!
+                    )
                     st.plotly_chart(fig_inc, width="stretch")
                 else:
                     st.info("Keine Einnahmen.")
