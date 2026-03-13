@@ -198,9 +198,9 @@ def main_dashboard():
             with c_pie2:
                 st.subheader("Ausgaben 📉")
                 df_exp = df[df["amount"] < 0].copy()
-                df_exp["betrag"] = df_exp["amount"].abs()
+                df_exp["Betrag"] = df_exp["amount"].abs()
                 if not df_exp.empty:
-                    fig_exp = px.pie(df_exp, values="betrag", names="Kategorie", hole=0.4)
+                    fig_exp = px.pie(df_exp, values="Betrag", names="Kategorie", hole=0.4)
                     st.plotly_chart(fig_exp, width="stretch")
                 else:
                     st.info("Keine Ausgaben.")
