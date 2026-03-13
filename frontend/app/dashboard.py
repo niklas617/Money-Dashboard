@@ -188,9 +188,9 @@ def main_dashboard():
             c_pie1, c_pie2 = st.columns(2)
             with c_pie1:
                 st.subheader("Einnahmen 📈")
-                df_inc = df[df["amount"] > 0]
+                df_inc = df[df["Einnahmen "] > 0]
                 if not df_inc.empty:
-                    fig_inc = px.pie(df_inc, values="amount", names="Kategorie", hole=0.4)
+                    fig_inc = px.pie(df_inc, values="Einnahmen ", names="Kategorie", hole=0.4)
                     st.plotly_chart(fig_inc, width="stretch")
                 else:
                     st.info("Keine Einnahmen.")
@@ -198,9 +198,9 @@ def main_dashboard():
             with c_pie2:
                 st.subheader("Ausgaben 📉")
                 df_exp = df[df["amount"] < 0].copy()
-                df_exp["Betrag"] = df_exp["amount"].abs()
+                df_exp["Ausgaben"] = df_exp["amount"].abs()
                 if not df_exp.empty:
-                    fig_exp = px.pie(df_exp, values="Betrag", names="Kategorie", hole=0.4)
+                    fig_exp = px.pie(df_exp, values="Ausgaben ", names="Kategorie", hole=0.4)
                     st.plotly_chart(fig_exp, width="stretch")
                 else:
                     st.info("Keine Ausgaben.")
