@@ -220,7 +220,7 @@ def main_dashboard():
                 df_daily = df_daily.sort_values("sort_date")
                 df_daily["Kontostand"] = df_daily["amount"].cumsum()
 
-                fig_line = px.line(df_daily, x="date", y="Kontostand", markers=True, title="Entwicklung über Zeit")
+                fig_line = px.line(df_daily, x="date", y="Kontostand", markers=True, title="Entwicklung über Zeit", labels={"date":"Datum"})
                 st.plotly_chart(fig_line, width="stretch")
 
     # ==========================================
