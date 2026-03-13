@@ -190,7 +190,7 @@ def main_dashboard():
                 st.subheader("Einnahmen 📈")
                 df_inc = df[df["amount"] > 0]
                 if not df_inc.empty:
-                    fig_inc = px.pie(df_inc, values="amount", names="Kategorie", hole=0.4)
+                    fig_inc = px.pie(df_inc, values="Einnahmen", names="Kategorie", hole=0.4)
                     st.plotly_chart(fig_inc, width="stretch")
                 else:
                     st.info("Keine Einnahmen.")
