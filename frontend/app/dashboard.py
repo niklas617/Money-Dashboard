@@ -185,6 +185,7 @@ def main_dashboard():
             fig_bar.update_layout(bargap=0.6)
             st.plotly_chart(fig_bar, width="stretch")
 
+            c_pie1, c_pie2 = st.columns(2)
             with c_pie1:
                 st.subheader("Einnahmen 📈")
                 df_inc = df[df["amount"] > 0]
