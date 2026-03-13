@@ -2,50 +2,52 @@ from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field
 
-# --- Users ---
-class UserBase(SQLModel):
-    name: str
-    email: str
+# --- 1. DATENBANK-TABELLEN (Das, was gespeichert wird) ---
 
-class User(UserBase, table=True):
+class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    password_hash: str
 
-class UserCreate(UserBase):
-    pass
-
-
-# --- Accounts ---
-class AccountBase(SQLModel):
-    name: str
-    currency: str = "EUR"
-
-class Account(AccountBase, table=True):
+class Account(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    currency: str
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
-class AccountCreate(AccountBase):
-    pass
-
-
-# --- Categories ---
-# Wichtig: Die Kategorie muss VOR der Transaktion definiert werden, 
-# falls wir später echte Verknüpfungen (Foreign Keys) bauen wollen.
 class Category(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
-
-# --- Transactions ---
-# Hier ist jetzt alles zusammengefasst (nur noch EINMAL definiert)
-class TransactionBase(SQLModel):
-    account_id: int
-    amount: float  # + Einnahme, - Ausgabe
-    note: str = ""
-    # Die category_id ist jetzt fest von Anfang an dabei!
-    category_id: Optional[int] = Field(default=None, foreign_key="category.id")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-class Transaction(TransactionBase, table=True):
+class Transaction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    amount: float
+    note: str
+    date: datetime = Field(default_factory=datetime.utcnow)
+    
+    account_id: int = Field(foreign_key="account.id")
+    category_id: int = Field(foreign_key="category.id")
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
-class TransactionCreate(TransactionBase):
-    pass
+
+# --- 2. EINGABE-MODELLE (Das, was das Frontend schickt) ---
+# Diese Klassen haben gefehlt!
+
+class UserCreate(SQLModel):
+    username: str
+    password: str
+
+class AccountCreate(SQLModel):
+    name: str
+    currency: str
+
+class CategoryCreate(SQLModel):
+    name: str
+
+class TransactionCreate(SQLModel):
+    amount: float
+    note: str
+    date: datetime = Field(default_factory=datetime.utcnow)
+    account_id: int
+    category_id: int

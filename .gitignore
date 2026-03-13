@@ -19,3 +19,5 @@ __pycache__/
 *.db
 *.db-wal
 *.db-shm
+
+.streamlit/secrets.toml

@@ -1,20 +1,26 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
-from backend.app.db.models import Category
-from backend.app.db.session import get_session
+from typing import List
+from backend.app.db.database import engine
+from backend.app.db.models import Category, CategoryCreate, User
+from backend.app.api.auth import get_current_user
 
-# Prefix weglassen, da es in der main.py definiert wird!
-router = APIRouter(tags=["categories"])
+router = APIRouter()
 
-@router.get("/")
-def get_categories(session: Session = Depends(get_session)):
-    # Gibt alle Kategorien zurück.
-    return session.exec(select(Category)).all()
+def get_session():
+    with Session(engine) as session:
+        yield session
 
-@router.post("/")
-def create_category(category: Category, session: Session = Depends(get_session)):
-    # Legt eine neue Kategorie in der Datenbank an.
-    session.add(category)
+@router.post("/", response_model=Category)
+def create_category(category: CategoryCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    new_category = Category.from_orm(category)
+    new_category.user_id = current_user.id # Stempel drauf!
+    session.add(new_category)
     session.commit()
-    session.refresh(category)
-    return category
+    session.refresh(new_category)
+    return new_category
+
+@router.get("/", response_model=List[Category])
+def read_categories(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    statement = select(Category).where(Category.user_id == current_user.id)
+    return session.exec(statement).all()
