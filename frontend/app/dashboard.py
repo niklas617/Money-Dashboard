@@ -185,7 +185,7 @@ def main_dashboard():
             fig_bar.update_layout(bargap=0.6)
             st.plotly_chart(fig_bar, width="stretch")
 
-         with c_pie1:
+            with c_pie1:
                 st.subheader("Einnahmen 📈")
                 df_inc = df[df["amount"] > 0]
                 if not df_inc.empty:
@@ -199,7 +199,7 @@ def main_dashboard():
                     st.plotly_chart(fig_inc, width="stretch")
                 else:
                     st.info("Keine Einnahmen.")
-
+                    
             with c_pie2:
                 st.subheader("Ausgaben 📉")
                 df_exp = df[df["amount"] < 0].copy()
