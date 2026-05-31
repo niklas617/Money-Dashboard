@@ -192,21 +192,40 @@ def render_konten(accounts: list, selected_acc_id):
                 st.subheader("Einnahmen nach Kategorie")
                 df_inc = df[df["amount"] > 0]
                 if not df_inc.empty:
+<<<<<<< HEAD
                     st.plotly_chart(
                         px.pie(df_inc, values="amount", names="Kategorie", hole=0.4),
                         use_container_width=True,
                     )
                 else:
                     st.info("Keine Einnahmen.")
+=======
+                    fig_inc = px.pie(
+                        df_inc, 
+                        values="amount", 
+                        names="Kategorie", 
+                        hole=0.4,
+                        labels={"amount": "Einnahmen"}  # <-- HIER ist der Trick!
+                    )
+                    st.plotly_chart(fig_inc, width="stretch")
+                else:
+                    st.info("Keine Einnahmen.")
+                    
+>>>>>>> e99e760a53c3fd2557ee534003a08bc6fd4b0c1b
             with c_pie2:
                 st.subheader("Ausgaben nach Kategorie")
                 df_exp = df[df["amount"] < 0].copy()
                 df_exp["Ausgaben"] = df_exp["amount"].abs()
                 if not df_exp.empty:
+<<<<<<< HEAD
                     st.plotly_chart(
                         px.pie(df_exp, values="Ausgaben", names="Kategorie", hole=0.4),
                         use_container_width=True,
                     )
+=======
+                    fig_exp = px.pie(df_exp, values="Ausgaben", names="Kategorie", hole=0.4)
+                    st.plotly_chart(fig_exp, width="stretch")
+>>>>>>> e99e760a53c3fd2557ee534003a08bc6fd4b0c1b
                 else:
                     st.info("Keine Ausgaben.")
 
@@ -224,7 +243,14 @@ def render_konten(accounts: list, selected_acc_id):
                 use_container_width=True,
             )
 
+<<<<<<< HEAD
     # ------------------------------------------
+=======
+                fig_line = px.line(df_daily, x="date", y="Kontostand", markers=True, title="Entwicklung über Zeit", labels={"date":"Datum"})
+                st.plotly_chart(fig_line, width="stretch")
+
+    # ==========================================
+>>>>>>> e99e760a53c3fd2557ee534003a08bc6fd4b0c1b
     # TAB 2: BUCHUNGEN
     # ------------------------------------------
     with tab_bookings:
