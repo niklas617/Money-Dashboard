@@ -33,6 +33,7 @@ if "user" not in st.session_state:
 # API HELPER
 # ==========================================
 
+
 def api_request(method, endpoint, **kwargs):
     headers = kwargs.pop("headers", {})
     if st.session_state.token:
@@ -52,6 +53,7 @@ def api_request(method, endpoint, **kwargs):
 # ==========================================
 # LOGIN
 # ==========================================
+
 
 def login_page():
     c1, c2, c3 = st.columns([1, 2, 1])
@@ -89,6 +91,7 @@ def login_page():
 # SIDEBAR NAVIGATION
 # ==========================================
 
+
 def render_sidebar(accounts: list) -> tuple:
     """Gibt (page, selected_acc_id) zurück."""
     with st.sidebar:
@@ -120,6 +123,7 @@ def render_sidebar(accounts: list) -> tuple:
 # ==========================================
 # KONTEN-BEREICH
 # ==========================================
+
 
 def render_konten(accounts: list, selected_acc_id):
     res_cat = api_request("GET", "categories/")
@@ -164,68 +168,60 @@ def render_konten(accounts: list, selected_acc_id):
         if df.empty:
             st.info("Noch keine Buchungen für dieses Jahr vorhanden.")
         else:
-            income   = df[df["amount"] > 0]["amount"].sum()
+            income = df[df["amount"] > 0]["amount"].sum()
             expenses = df[df["amount"] < 0]["amount"].sum()
-            balance  = income + expenses
+            balance = income + expenses
 
             kpi1, kpi2, kpi3 = st.columns(3)
-            kpi1.metric("Einnahmen",    f"{income:,.2f} €")
-            kpi2.metric("Ausgaben",     f"{expenses:,.2f} €", delta_color="inverse")
+            kpi1.metric("Einnahmen", f"{income:,.2f} €")
+            kpi2.metric("Ausgaben", f"{expenses:,.2f} €", delta_color="inverse")
             kpi3.metric("Saldo (Jahr)", f"{balance:,.2f} €", delta=f"{balance:+.2f} €")
 
             st.divider()
 
-            df_bar = pd.DataFrame({
-                "Typ": ["Einnahmen", "Ausgaben"],
-                "Betrag": [income, abs(expenses)],
-            })
+            df_bar = pd.DataFrame(
+                {
+                    "Typ": ["Einnahmen", "Ausgaben"],
+                    "Betrag": [income, abs(expenses)],
+                }
+            )
             fig_bar = px.bar(
-                df_bar, x="Typ", y="Betrag", color="Typ",
+                df_bar,
+                x="Typ",
+                y="Betrag",
+                color="Typ",
                 color_discrete_map={"Einnahmen": "#2ecc71", "Ausgaben": "#e74c3c"},
                 title="Einnahmen vs. Ausgaben",
             )
             fig_bar.update_layout(bargap=0.6, showlegend=False)
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width="stretch")
 
             c_pie1, c_pie2 = st.columns(2)
+
             with c_pie1:
                 st.subheader("Einnahmen nach Kategorie")
                 df_inc = df[df["amount"] > 0]
                 if not df_inc.empty:
-<<<<<<< HEAD
-                    st.plotly_chart(
-                        px.pie(df_inc, values="amount", names="Kategorie", hole=0.4),
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("Keine Einnahmen.")
-=======
                     fig_inc = px.pie(
-                        df_inc, 
-                        values="amount", 
-                        names="Kategorie", 
+                        df_inc,
+                        values="amount",
+                        names="Kategorie",
                         hole=0.4,
-                        labels={"amount": "Einnahmen"}  # <-- HIER ist der Trick!
+                        labels={"amount": "Einnahmen"},
                     )
                     st.plotly_chart(fig_inc, width="stretch")
                 else:
                     st.info("Keine Einnahmen.")
-                    
->>>>>>> e99e760a53c3fd2557ee534003a08bc6fd4b0c1b
+
             with c_pie2:
                 st.subheader("Ausgaben nach Kategorie")
                 df_exp = df[df["amount"] < 0].copy()
                 df_exp["Ausgaben"] = df_exp["amount"].abs()
                 if not df_exp.empty:
-<<<<<<< HEAD
-                    st.plotly_chart(
-                        px.pie(df_exp, values="Ausgaben", names="Kategorie", hole=0.4),
-                        use_container_width=True,
+                    fig_exp = px.pie(
+                        df_exp, values="Ausgaben", names="Kategorie", hole=0.4
                     )
-=======
-                    fig_exp = px.pie(df_exp, values="Ausgaben", names="Kategorie", hole=0.4)
                     st.plotly_chart(fig_exp, width="stretch")
->>>>>>> e99e760a53c3fd2557ee534003a08bc6fd4b0c1b
                 else:
                     st.info("Keine Ausgaben.")
 
@@ -233,24 +229,23 @@ def render_konten(accounts: list, selected_acc_id):
             st.subheader("Verlauf des Kontostands")
             df_line = df.copy()
             df_line["sort_date"] = pd.to_datetime(df_line["date"], format="%d.%m.%Y")
-            df_daily = df_line.groupby(["sort_date", "date"])["amount"].sum().reset_index()
+            df_daily = (
+                df_line.groupby(["sort_date", "date"])["amount"].sum().reset_index()
+            )
             df_daily = df_daily.sort_values("sort_date")
             df_daily["Kontostand"] = df_daily["amount"].cumsum()
-            st.plotly_chart(
-                px.line(df_daily, x="date", y="Kontostand",
-                        markers=True, title="Entwicklung über Zeit",
-                        labels={"date": "Datum"}),
-                use_container_width=True,
+
+            fig_line = px.line(
+                df_daily,
+                x="date",
+                y="Kontostand",
+                markers=True,
+                title="Entwicklung über Zeit",
+                labels={"date": "Datum"},
             )
+            st.plotly_chart(fig_line, width="stretch")
 
-<<<<<<< HEAD
     # ------------------------------------------
-=======
-                fig_line = px.line(df_daily, x="date", y="Kontostand", markers=True, title="Entwicklung über Zeit", labels={"date":"Datum"})
-                st.plotly_chart(fig_line, width="stretch")
-
-    # ==========================================
->>>>>>> e99e760a53c3fd2557ee534003a08bc6fd4b0c1b
     # TAB 2: BUCHUNGEN
     # ------------------------------------------
     with tab_bookings:
@@ -262,15 +257,20 @@ def render_konten(accounts: list, selected_acc_id):
                     c1, c2 = st.columns(2)
                     with c1:
                         amt = st.number_input(
-                            "Betrag (€)", value=None, placeholder="0,00",
-                            step=0.01, format="%.2f",
+                            "Betrag (€)",
+                            value=None,
+                            placeholder="0,00",
+                            step=0.01,
+                            format="%.2f",
                         )
                         typ = st.radio("Art", ["Ausgabe", "Einnahme"], horizontal=True)
                     with c2:
                         cat_map = {c["name"]: c["id"] for c in categories}
                         sel_cat = st.selectbox(
-                            "Kategorie", list(cat_map.keys()),
-                            index=None, placeholder="Wähle eine Kategorie",
+                            "Kategorie",
+                            list(cat_map.keys()),
+                            index=None,
+                            placeholder="Wähle eine Kategorie",
                         )
                         note = st.text_input("Notiz", placeholder="Z.B. Einkauf Rewe")
 
@@ -280,11 +280,15 @@ def render_konten(accounts: list, selected_acc_id):
                         else:
                             val = -amt if typ == "Ausgabe" else amt
                             res = api_request(
-                                "POST", "transactions/",
-                                json={"amount": val, "note": note,
-                                      "account_id": selected_acc_id,
-                                      "category_id": cat_map[sel_cat],
-                                      "date": date.today().isoformat()},
+                                "POST",
+                                "transactions/",
+                                json={
+                                    "amount": val,
+                                    "note": note,
+                                    "account_id": selected_acc_id,
+                                    "category_id": cat_map[sel_cat],
+                                    "date": date.today().isoformat(),
+                                },
                             )
                             if res and res.status_code in (200, 201):
                                 st.success("Gespeichert!")
@@ -292,7 +296,7 @@ def render_konten(accounts: list, selected_acc_id):
 
         st.subheader("📅 Buchungen durchsuchen")
         col_y, col_m = st.columns(2)
-        year  = col_y.number_input("Jahr", value=current_year, step=1)
+        year = col_y.number_input("Jahr", value=current_year, step=1)
         month = col_m.selectbox("Monat", [None] + list(range(1, 13)))
 
         params = {"account_id": selected_acc_id, "year": int(year)}
@@ -306,21 +310,28 @@ def render_konten(accounts: list, selected_acc_id):
             st.divider()
             st.subheader("📝 Buchung bearbeiten")
             tx_to_edit = next(
-                (t for t in filtered_txs if t["id"] == st.session_state.edit_tx_id), None
+                (t for t in filtered_txs if t["id"] == st.session_state.edit_tx_id),
+                None,
             )
             if tx_to_edit:
                 with st.form("edit_form"):
-                    new_amt  = st.number_input("Betrag", value=float(abs(tx_to_edit["amount"])))
+                    new_amt = st.number_input(
+                        "Betrag", value=float(abs(tx_to_edit["amount"]))
+                    )
                     new_note = st.text_input("Notiz", value=tx_to_edit["note"])
                     col_a, col_b = st.columns(2)
                     if col_a.form_submit_button("Speichern"):
                         final_val = -new_amt if tx_to_edit["amount"] < 0 else new_amt
                         res = api_request(
-                            "PUT", f"transactions/{tx_to_edit['id']}",
-                            json={"amount": final_val, "note": new_note,
-                                  "category_id": tx_to_edit["category_id"],
-                                  "account_id":  tx_to_edit["account_id"],
-                                  "date":        tx_to_edit["date"]},
+                            "PUT",
+                            f"transactions/{tx_to_edit['id']}",
+                            json={
+                                "amount": final_val,
+                                "note": new_note,
+                                "category_id": tx_to_edit["category_id"],
+                                "account_id": tx_to_edit["account_id"],
+                                "date": tx_to_edit["date"],
+                            },
                         )
                         if res and res.ok:
                             st.success("Aktualisiert!")
@@ -335,8 +346,10 @@ def render_konten(accounts: list, selected_acc_id):
             filtered_txs.sort(key=lambda x: x.get("id", 0), reverse=True)
             st.write("---")
             h1, h2, h3, h4, h5, h6 = st.columns([2, 2, 3, 2, 1, 1])
-            h1.markdown("**Datum**"); h2.markdown("**Kategorie**")
-            h3.markdown("**Notiz**"); h4.markdown("**Betrag**")
+            h1.markdown("**Datum**")
+            h2.markdown("**Kategorie**")
+            h3.markdown("**Notiz**")
+            h4.markdown("**Betrag**")
             st.write("---")
             cat_lookup = {c["id"]: c["name"] for c in categories}
             for tx in filtered_txs:
@@ -368,7 +381,7 @@ def render_konten(accounts: list, selected_acc_id):
         with c1:
             st.subheader("🏦 Neues Konto anlegen")
             n_acc = st.text_input("Kontoname", key="n_acc")
-            curr  = st.selectbox("Währung", ["EUR", "USD"], key="curr")
+            curr = st.selectbox("Währung", ["EUR", "USD"], key="curr")
             if st.button("Konto anlegen"):
                 api_request("POST", "accounts/", json={"name": n_acc, "currency": curr})
                 st.rerun()
@@ -384,7 +397,14 @@ def render_konten(accounts: list, selected_acc_id):
                 st.rerun()
             st.divider()
             if st.button("🔄 Standard-Kategorien laden"):
-                for d in ["Lebensmittel", "Miete", "Gehalt", "Freizeit", "Transport", "Sparen"]:
+                for d in [
+                    "Lebensmittel",
+                    "Miete",
+                    "Gehalt",
+                    "Freizeit",
+                    "Transport",
+                    "Sparen",
+                ]:
                     api_request("POST", "categories/", json={"name": d})
                 st.rerun()
 
