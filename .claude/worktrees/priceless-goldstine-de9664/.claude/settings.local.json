@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import yfinance; print\\(yfinance.__version__\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('frontend/app/dashboard.py', encoding='utf-8'\\).read\\(\\)\\); print\\('dashboard.py OK'\\)\")",
+      "Bash(ls \"C:/Users/ns051/Desktop/dashboard/backend/app/api/\")",
+      "Read(//c/Users/ns051/Desktop/dashboard/**)",
+      "Bash(cp \"C:/Users/ns051/Desktop/dashboard/frontend/.claude/settings.local.json\" \"C:/Users/ns051/Desktop/dashboard/.claude/settings.local.json\")",
+      "Bash(rm -rf \"C:/Users/ns051/Desktop/dashboard/frontend/.claude\")",
+      "Bash(.venv/Scripts/python.exe -c \"import yfinance; print\\('yfinance', yfinance.__version__\\)\")",
+      "Bash(.venv/Scripts/pip.exe install *)",
+      "Bash(\"C:/Users/ns051/Desktop/dashboard/.venv/Scripts/pip.exe\" list *)",
+      "Bash(\"C:/Users/ns051/Desktop/dashboard/.venv/Scripts/python.exe\" -c \"import sys; print\\('sys.path:', sys.path[:3]\\)\")",
+      "Bash(ls \"C:/Users/ns051/Desktop/dashboard/.venv/Lib/site-packages/\" 2>&1 | wc -l && ls \"C:/Users/ns051/Desktop/Programmieren/dashboard/.venv/Lib/site-packages/\" 2>&1 | wc -l)",
+      "Bash(\"C:/Users/ns051/Desktop/dashboard/.venv/Scripts/pip.exe\" install *)",
+      "Bash(\"C:/Users/ns051/Desktop/dashboard/.venv/Scripts/python.exe\" -c \"import sys; print\\(sys.path\\)\")",
+      "Bash(\"C:/Users/ns051/Desktop/dashboard/.venv/Scripts/python.exe\" -m pip install yfinance --quiet)",
+      "Bash(C:/Users/ns051/Desktop/dashboard/.venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}

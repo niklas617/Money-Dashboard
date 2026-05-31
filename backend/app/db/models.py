@@ -51,3 +51,27 @@ class TransactionCreate(SQLModel):
     date: datetime = Field(default_factory=datetime.utcnow)
     account_id: int
     category_id: int
+
+
+# --- PORTFOLIO ---
+
+class Trade(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    symbol: str = Field(index=True)
+    asset_name: str
+    asset_type: str   # "stock" | "crypto"
+    trade_type: str   # "BUY"  | "SELL"
+    quantity: float
+    price_per_unit: float
+    date: datetime = Field(default_factory=datetime.utcnow)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class TradeCreate(SQLModel):
+    symbol: str
+    asset_name: str
+    asset_type: str
+    trade_type: str
+    quantity: float
+    price_per_unit: float
+    date: datetime = Field(default_factory=datetime.utcnow)
