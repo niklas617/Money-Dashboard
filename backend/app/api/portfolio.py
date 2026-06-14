@@ -7,6 +7,7 @@ import requests as http_requests
 import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from pydantic import BaseModel
 
 from backend.app.api.auth import get_current_user
 from backend.app.db.database import engine
@@ -15,35 +16,276 @@ from backend.app.db.models import Trade, TradeCreate, User
 router = APIRouter()
 
 # ---------- CoinGecko: Symbol -> Coin-ID ----------
-
-CRYPTO_ID_MAP: Dict[str, str] = {
-    "BTC":   "bitcoin",
-    "ETH":   "ethereum",
-    "SOL":   "solana",
-    "BNB":   "binancecoin",
-    "XRP":   "ripple",
-    "ADA":   "cardano",
-    "DOGE":  "dogecoin",
-    "DOT":   "polkadot",
+CRYPTO_ID_MAP = {
+    # --- Top 20 & Stablecoins ---
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "USDT": "tether",
+    "BNB": "binancecoin",
+    "SOL": "solana",
+    "USDC": "usd-coin",
+    "XRP": "ripple",
+    "TON": "the-open-network",
+    "DOGE": "dogecoin",
+    "ADA": "cardano",
+    "SHIB": "shiba-inu",
+    "AVAX": "avalanche-2",
+    "DOT": "polkadot",
+    "BCH": "bitcoin-cash",
+    "LINK": "chainlink",
+    "TRX": "tron",
     "MATIC": "matic-network",
-    "AVAX":  "avalanche-2",
-    "LINK":  "chainlink",
-    "UNI":   "uniswap",
-    "LTC":   "litecoin",
-    "ATOM":  "cosmos",
-    "ALGO":  "algorand",
-    "NEAR":  "near",
-    "SHIB":  "shiba-inu",
-    "TRX":   "tron",
-    "TON":   "the-open-network",
-    "FTM":   "fantom",
-    "OP":    "optimism",
-    "ARB":   "arbitrum",
-    "APT":   "aptos",
-    "SUI":   "sui",
-    "INJ":   "injective-protocol",
-}
+    "NEAR": "near",
+    "LTC": "litecoin",
+    "ICP": "internet-computer",
+    "DAI": "dai",
+    "UNI": "uniswap",
 
+    # --- Layer 1 & Layer 2 Chains ---
+    "QUBIC": "qubic",
+    "APT": "aptos",
+    "SUI": "sui",
+    "STX": "blockstack",
+    "XLM": "stellar",
+    "ATOM": "cosmos",
+    "MNT": "mantle",
+    "HBAR": "hedera-hashgraph",
+    "CRO": "crypto-com-chain",
+    "ETC": "ethereum-classic",
+    "KAS": "kaspa",
+    "VET": "vechain",
+    "OP": "optimism",
+    "ARB": "arbitrum",
+    "FTM": "fantom",
+    "ALGO": "algorand",
+    "SEI": "sei-network",
+    "EGLD": "elrond-erd-2",
+    "FLOW": "flow",
+    "XTZ": "tezos",
+    "NEO": "neo",
+    "EOS": "eos",
+    "IOTA": "iota",
+    "ZIL": "zilliqa",
+    "CELO": "celo",
+    "ROSE": "oasis-network",
+    "GLMR": "moonbeam",
+    "ONE": "harmony",
+    "KSM": "kusama",
+    "CSPR": "casper-network",
+    "ICX": "icon",
+    "ONT": "ontology",
+
+    # --- AI, Data & DePIN (inklusive TAO) ---
+    "TAO": "bittensor",
+    "GRT": "the-graph",
+    "RNDR": "render-token",
+    "FIL": "filecoin",
+    "THETA": "theta-token",
+    "FET": "fetch-ai",
+    "AGIX": "singularitynet",
+    "OCEAN": "ocean-protocol",
+    "AR": "arweave",
+    "AKT": "akash-network",
+    "JASMY": "jasmycoin",
+    "GLM": "golem",
+    "SC": "siacoin",
+
+    # --- Memecoins ---
+    "PEPE": "pepe",
+    "WIF": "dogwifcoin",
+    "FLOKI": "floki",
+    "BONK": "bonk",
+    "BOME": "book-of-meme",
+    "MEME": "memecoin-2",
+
+    # --- DeFi & Exchanges ---
+    "MKR": "maker",
+    "INJ": "injective-protocol",
+    "LDO": "lido-dao",
+    "RUNE": "thorchain",
+    "AAVE": "aave",
+    "SNX": "synthetix-network-token",
+    "CRV": "curve-dao-token",
+    "COMP": "compound-governance-token",
+    "CAKE": "pancakeswap-token",
+    "1INCH": "1inch",
+    "GMX": "gmx",
+    "LRC": "loopring",
+    "FXS": "frax-share",
+    "YFI": "yearn-finance",
+    "TWT": "trust-wallet-token",
+    "NEXO": "nexo",
+    "ENS": "ethereum-name-service",
+    "SSV": "ssv-network",
+    "RPL": "rocket-pool",
+    "GNO": "gnosis",
+    "BAL": "balancer",
+    "BNT": "bancor",
+    "REQ": "request-network",
+    "PENDLE": "pendle",
+    "ONDO": "ondo-finance",
+    "JTO": "jito-governance-token",
+    "PYTH": "pyth-network",
+    "DYDX": "dydx",
+    "SUSHI": "sushi",
+    "RAY": "raydium",
+
+    # --- Gaming, Metaverse & NFTs ---
+    "IMX": "immutable-x",
+    "SAND": "the-sandbox",
+    "AXS": "axie-infinity",
+    "CHZ": "chiliz",
+    "MANA": "decentraland",
+    "ENJ": "enjincoin",
+    "ILV": "illuvium",
+    "BEAM": "beam-2",
+    "GALA": "gala",
+    "BLUR": "blur",
+    "YGG": "yield-guild-games",
+    "MAGIC": "magic",
+    "APE": "apecoin",
+    "WAXP": "wax",
+    "SLP": "smooth-love-potion",
+
+    # --- Privacy & Older Coins ---
+    "XMR": "monero",
+    "ZEC": "zcash",
+    "DASH": "dash",
+    "BSV": "bitcoin-cash-sv",
+    "XEC": "ecash",
+    "BAT": "basic-attention-token",
+    "RVN": "ravencoin",
+    "DCR": "decred",
+    "XEM": "nem",
+    "QTUM": "qtum",
+    "ZRX": "0x",
+    "LSK": "lisk",
+
+    # --- Neue / Trending Projects (2023-2024) ---
+    "TIA": "celestia",
+    "ORDI": "ordinals",
+    "STRK": "starknet",
+    "WLD": "worldcoin-wld",
+    "ZETA": "zetachain",
+    "ALT": "altlayer",
+    "MANTA": "manta-network",
+    "DYM": "dymension",
+    "ENA": "ethena",
+    "W": "wormhole",
+    "TNSR": "tensor",
+    "AEVO": "aevo",
+
+    # --- Erweiterung 1: Solana Ecosystem (DeFi, DePIN & NFTs) ---
+    "RAY": "raydium",
+    "ORCA": "orca",
+    "SRM": "serum",
+    "FIDA": "bonfida",
+    "MNGO": "mango-markets",
+    "SBR": "saber",
+    "MOBILE": "helium-mobile",
+    "IOT": "helium-iot",
+    "HONEY": "hivemapper",
+    "DIMO": "dimo",
+    "ATLAS": "star-atlas",
+    "POLIS": "star-atlas-dao",
+
+    # --- Erweiterung 2: Cosmos & Polkadot Ecosystem ---
+    "OSMO": "osmosis",
+    "SCRT": "secret",
+    "KAVA": "kava",
+    "CTK": "certik",
+    "IRIS": "iris-network",
+    "EVMOS": "evmos",
+    "CANTO": "canto",
+    "ASTR": "astar",
+    "ACA": "acala",
+    "MOVR": "moonriver",
+    "CFG": "centrifuge",
+    "BNC": "bifrost-native-coin",
+    "PHA": "phala-network",
+
+    # --- Erweiterung 3: Alte OGs, Proof-of-Work & Layer 1s ---
+    "HNT": "helium",
+    "MINA": "mina-protocol",
+    "KDA": "kadena",
+    "FLUX": "zelcash",
+    "ERG": "ergo",
+    "NEXA": "nexa",
+    "DNX": "dynex",
+    "XNO": "nano",
+    "DGB": "digibyte",
+    "SYS": "syscoin",
+    "ZEN": "horizen",
+    "CKB": "nervos-network",
+    "GAS": "gas",
+    "ONG": "ontology-gas",
+    "VTHO": "vethor-token",
+    "XCH": "chia",
+
+    # --- Erweiterung 4: Web3, Storage, Orakel & Infrastruktur ---
+    "STORJ": "storj",
+    "SNT": "status",
+    "CVC": "civic",
+    "POWR": "power-ledger",
+    "RLC": "iexec-rlc",
+    "NMR": "numeraire",
+    "KNC": "kyber-network-crystal",
+    "ANT": "aragon",
+    "MLN": "enzyme",
+    "REN": "republic-protocol",
+    "UMA": "uma",
+    "BAND": "band-protocol",
+    "API3": "api3",
+    "DIA": "dia-data",
+    "TRB": "tellor",
+    "OXT": "orchid-protocol",
+    "LPT": "livepeer",
+    "AUDIO": "audius",
+    "BICO": "biconomy",
+    "CTSI": "cartesi",
+    "CELR": "celer-network",
+    "SKL": "skale",
+    "COTI": "coti",
+
+    # --- Erweiterung 5: Gaming, Metaverse & Gilden ---
+    "SUPER": "superfarm",
+    "UOS": "ultra",
+    "PYR": "vulcan-forged",
+    "ALICE": "my-neighbor-alice",
+    "DAR": "mines-of-dalarnia",
+    "TLM": "alien-worlds",
+    "MC": "merit-circle",
+    "PLA": "playdapp",
+
+    # --- Erweiterung 6: Spezielle DeFi & Yield Token ---
+    "FORTH": "ampleforth-governance-token",
+    "AMPL": "ampleforth",
+    "BADGER": "badger-dao",
+    "FARM": "harvest-finance",
+    "ALCX": "alchemix",
+    "CVX": "convex-finance",
+    "SPELL": "spell-token",
+    "MIM": "magic-internet-money",
+    "JOE": "joe",
+    "PNG": "pangolin",
+    "QI": "benqi",
+    "XVS": "venus",
+    "ALPHA": "alpha-finance",
+
+    # --- Erweiterung 7: Tron Ecosystem & Terra/Luna ---
+    "LUNC": "terra-luna",
+    "USTC": "terrausd",
+    "LUNA": "terra-luna-2",
+    "BTT": "bittorrent",
+    "JST": "just",
+    "SUN": "sun-token",
+    "WIN": "wink",
+
+    # --- Erweiterung 8: Exchange & Wallet Token ---
+    "C98": "coin98",
+    "SFP": "safepal",
+    "ACH": "alchemy-pay"
+}
 
 # ---------- DB-Session ----------
 
@@ -465,9 +707,9 @@ def lookup_asset(
             return {
                 "symbol":          symbol,
                 "name":            data.get("name", symbol),
-                "price_usd":       round(price_usd, 4),
-                "price_eur":       round(price_eur, 4),
-                "current_price":   round(price_eur, 4),
+                "price_usd":       round(price_usd, 8),
+                "price_eur":       round(price_eur, 8),
+                "current_price":   round(price_eur, 8),
                 "native_currency": "USD",
                 "logo_url":        data.get("image", {}).get("small", ""),
                 "asset_type":      "crypto",
@@ -516,6 +758,37 @@ def delete_trade(
     session.delete(trade)
     session.commit()
     return {"status": "ok"}
+
+# --- Update Schema für Trades ---
+class TradeUpdate(BaseModel):
+    quantity: float
+    price_per_unit: float
+
+@router.put("/trades/{trade_id}", response_model=Trade)
+def update_trade(
+    trade_id: int,
+    trade_in: TradeUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    # 1. Trade suchen und prüfen, ob er dem User gehört
+    trade = session.exec(
+        select(Trade).where(Trade.id == trade_id, Trade.user_id == current_user.id)
+    ).first()
+
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade nicht gefunden")
+
+    # 2. Werte aktualisieren
+    trade.quantity = trade_in.quantity
+    trade.price_per_unit = trade_in.price_per_unit
+
+    # 3. Speichern
+    session.add(trade)
+    session.commit()
+    session.refresh(trade)
+
+    return trade
 
 
 @router.get("/summary")

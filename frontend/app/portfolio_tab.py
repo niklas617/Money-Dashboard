@@ -161,9 +161,9 @@ def render(api_request, api_url: str) -> None:
             .applymap(_color_pnl, subset=["Unreal. P&L €", "Unreal. %", "Real. P&L €"])
             .format({
                 "Anzahl":       "{:.6g}",
-                "Ø Buy-In €":  "{:.4f}",
-                "Kurs €":      "{:.4f}",
-                "Wert €":      "{:.2f}",
+                "Ø Buy-In €":  "{:,.8g}",  
+                "Kurs €":      "{:,.8g}",  
+                "Wert €":      "{:,.2f}",
                 "Unreal. P&L €": "{:+.2f}",
                 "Unreal. %":   "{:+.2f} %",
                 "Real. P&L €": "{:+.2f}",
@@ -274,7 +274,7 @@ def render(api_request, api_url: str) -> None:
 
         # Rechte Spalte: Trade-Formular
         with form_col:
-            default_price = float(price_eur) if price_eur > 0 else 0.0001
+            default_price = float(price_eur) if price_eur > 0 else 0.00000001
 
             with st.form("add_trade_form", clear_on_submit=True):
                 f1, f2 = st.columns(2)
@@ -295,10 +295,10 @@ def render(api_request, api_url: str) -> None:
                 with f2:
                     price = st.number_input(
                         "Preis / Stück (€) *",
-                        min_value=0.0001,
-                        value=default_price,
-                        step=0.01,
-                        format="%.4f",
+                        min_value=0.00000001,   # Erlaubt fast Null
+                        value=default_price,    # Hier landet jetzt Qubic fehlerfrei
+                        step=0.00000001,        # Erlaubt extrem kleine manuelle Anpassungen
+                        format="%.8f",          # Zeigt bis zu 8 Nullen/Zahlen im Eingabefeld an
                         help="Vorausgefüllt mit Live-Kurs — für historische Trades anpassen.",
                     )
                     trade_date = st.date_input("Datum *", value=date.today())
@@ -345,9 +345,13 @@ def render(api_request, api_url: str) -> None:
         st.info("Noch keine Trades vorhanden.")
         return
 
+    # --- Session State für das Editieren initialisieren ---
+    if "ptab_edit_trade_id" not in st.session_state:
+        st.session_state.ptab_edit_trade_id = None
+
     # Header
-    cols_w = [1.3, 2.2, 0.9, 0.8, 1.1, 1.3, 1.3, 0.6]
-    headers = ["Datum", "Symbol / Name", "Typ", "Klasse", "Anzahl", "Preis", "Total", ""]
+    cols_w = [1.3, 2.2, 0.9, 0.8, 1.1, 1.3, 1.3, 1.0] # Letzte Spalte etwas breiter für 2 Buttons
+    headers = ["Datum", "Symbol / Name", "Typ", "Klasse", "Anzahl", "Preis", "Total", "Aktion"]
     h = st.columns(cols_w)
     for col, label in zip(h, headers):
         col.markdown(f"**{label}**")
@@ -369,8 +373,71 @@ def render(api_request, api_url: str) -> None:
         c6.write(f"{trade['price_per_unit']:.4f} €")
         c7.write(f"{trade['quantity'] * trade['price_per_unit']:.2f} €")
 
-        if c8.button("🗑️", key=f"del_trade_{trade['id']}"):
+        # Icons nebeneinander
+        b1, b2 = c8.columns(2)
+        
+        # ✏️ Bearbeiten Button
+        if b1.button("✏️", key=f"edit_trade_{trade['id']}"):
+            st.session_state.ptab_edit_trade_id = trade['id']
+            st.rerun()
+            
+        # 🗑️ Löschen Button
+        if b2.button("🗑️", key=f"del_trade_{trade['id']}"):
             del_res = api_request("DELETE", f"portfolio/trades/{trade['id']}")
             if del_res and del_res.ok:
                 _clear_portfolio_cache()
                 st.rerun()
+
+    # ==========================================
+    # BEARBEITUNGS-FORMULAR (Pop-up Logik)
+    # ==========================================
+    if st.session_state.ptab_edit_trade_id:
+        st.markdown("---")
+        st.subheader("📝 Trade bearbeiten")
+        
+        trade_to_edit = next((t for t in trades_raw if t["id"] == st.session_state.ptab_edit_trade_id), None)
+        
+        if trade_to_edit:
+            with st.form("edit_trade_form"):
+                st.write(f"**{trade_to_edit['symbol']}** – {trade_to_edit['asset_name']}")
+                
+                f1, f2 = st.columns(2)
+                with f1:
+                    new_qty = st.number_input(
+                        "Anzahl", 
+                        value=float(trade_to_edit["quantity"]), 
+                        min_value=0.000001, 
+                        step=0.001, 
+                        format="%.6f"
+                    )
+                with f2:
+                    new_price = st.number_input(
+                        "Preis / Stück (€)", 
+                        value=float(trade_to_edit["price_per_unit"]), 
+                        min_value=0.00000001,  # Angepasst!
+                        step=0.00000001,       # Angepasst!
+                        format="%.8f"          # Angepasst!
+                    )
+                
+                c_btn1, c_btn2 = st.columns(2)
+                
+                # SPEICHERN
+                if c_btn1.form_submit_button("💾 Ändern", type="primary"):
+                    payload = {
+                        "quantity": new_qty,
+                        "price_per_unit": new_price
+                    }
+                    res = api_request("PUT", f"portfolio/trades/{trade_to_edit['id']}", json=payload)
+                    
+                    if res and res.ok:
+                        st.success("Trade erfolgreich aktualisiert!")
+                        st.session_state.ptab_edit_trade_id = None
+                        _clear_portfolio_cache() # Extrem wichtig: Lädt die Diagramme & KPIs neu!
+                        st.rerun()
+                    else:
+                        st.error("Fehler beim Speichern im Backend.")
+                
+                # ABBRECHEN
+                if c_btn2.form_submit_button("Abbrechen"):
+                    st.session_state.ptab_edit_trade_id = None
+                    st.rerun()
