@@ -249,6 +249,38 @@ def render_konten(accounts: list, selected_acc_id):
     # TAB 2: BUCHUNGEN
     # ------------------------------------------
     with tab_bookings:
+        # --- NEU: KI SCANNER ---
+        with st.expander("🤖 Kontoauszug scannen (KI)", expanded=False):
+            st.info("Lade einen Screenshot oder ein Foto hoch. Gemini liest die Buchungen aus und trägt sie automatisch ein!")
+            uploaded_file = st.file_uploader("Bild auswählen", type=["png", "jpg", "jpeg"])
+            
+            if uploaded_file is not None:
+                if st.button("Jetzt analysieren & eintragen", type="primary", use_container_width=True):
+                    with st.spinner("Gemini studiert deinen Kontoauszug... 🔍"):
+                        
+                        # Wir schicken das Bild ans Backend (Das bauen wir im nächsten Schritt!)
+                        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                        headers = {"Authorization": f"Bearer {st.session_state.token}"}
+                        
+                        try:
+                            # HINWEIS: Dieser Endpunkt existiert noch nicht im Backend, das machen wir gleich!
+                            res = requests.post(
+                                f"{API_URL}/transactions/scan", 
+                                headers=headers, 
+                                files=files, 
+                                data={"account_id": selected_acc_id}
+                                )
+                            
+                            if res.status_code == 200:
+                                result = res.json()
+                                st.success(f"Erfolg! {result.get('count', 0)} Buchungen wurden gefunden und gespeichert.")
+                                st.rerun()
+                            else:
+                                st.error(f"Fehler vom Backend: {res.text}")
+                        except Exception as e:
+                            st.error(f"Fehler beim Senden: {e}")
+                            
+         # --- ALTE MANUELLE EINGABE (Bleibt bestehen) ---                   
         with st.expander("➕ Neue Buchung", expanded=True):
             if not categories:
                 st.error("Keine Kategorien vorhanden. Bitte erst Kategorien anlegen.")
