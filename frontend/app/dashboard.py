@@ -1,5 +1,6 @@
 import sys
 import os
+import streamlit.components.v1 as components
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -22,6 +23,13 @@ st.set_page_config(
     page_icon="💰",
     layout="wide",
 )
+
+# NEU: Token aus der URL auslesen (falls wir gerade von Google zurückkommen)
+if "token" in st.query_params:
+    st.session_state.token = st.query_params["token"]
+    st.session_state.user = st.query_params.get("user", "Google User")
+    # URL wieder aufräumen, damit der ewig lange Token verschwindet
+    st.query_params.clear() 
 
 if "token" not in st.session_state:
     st.session_state.token = None
@@ -54,19 +62,18 @@ def api_request(method, endpoint, **kwargs):
 # LOGIN
 # ==========================================
 
-
 def login_page():
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.title("🔐 Login")
+
+           # --- DEIN ALTER CODE (Bleibt erhalten) ---
         tab1, tab2 = st.tabs(["Anmelden", "Registrieren"])
         with tab1:
             u = st.text_input("Benutzername")
             p = st.text_input("Passwort", type="password")
             if st.button("Login", use_container_width=True):
-                res = requests.post(
-                    f"{API_URL}/auth/token", data={"username": u, "password": p}
-                )
+                res = requests.post(f"{API_URL}/auth/token", data={"username": u, "password": p})
                 if res.status_code == 200:
                     st.session_state.token = res.json()["access_token"]
                     st.session_state.user = u
@@ -85,6 +92,36 @@ def login_page():
                     st.success("Konto erstellt! Standard-Kategorien wurden angelegt.")
                 else:
                     st.error(f"Fehler: {res.text}")
+
+                    st.divider()
+        
+
+     
+        
+        # 1. HIER DEINE WEB-CLIENT-ID EINTRAGEN
+        GOOGLE_WEB_CLIENT_ID = "8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleusercontent.com"
+        
+        # 2. Das ist der Endpunkt in deinem FastAPI Backend, der den Token empfängt
+# dashboard.py
+        REDIRECT_URI = "http://localhost:8000/auth/google/web"        
+        # 3. Wir bauen den offiziellen Google-Login-Link zusammen
+        google_auth_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth?"
+            f"client_id={GOOGLE_WEB_CLIENT_ID}&"
+            f"redirect_uri={REDIRECT_URI}&"
+            f"response_type=id_token&"
+            f"scope=email%20profile&"
+            f"nonce=zentara123&"
+            f"response_mode=form_post"
+        )
+
+        st.link_button("🚀 Mit Google anmelden", google_auth_url, use_container_width=True)
+        # ----------------------------------------
+
+        
+       
+
+     
 
 
 # ==========================================

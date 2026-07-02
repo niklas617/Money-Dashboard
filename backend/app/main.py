@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from backend.app.core.settings import settings
 from backend.app.db.database import init_db
+from backend.app.api import auth
 
 # --- Router importieren ---
 from backend.app.api import auth

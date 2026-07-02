@@ -1,48 +1,90 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from jose import JWTError, jwt
+from pydantic import BaseModel
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 from backend.app.db.database import engine
-from backend.app.db.models import User, UserCreate, Category # Category importiert!
+from backend.app.db.models import User, UserCreate, Category
 from backend.app.core.security import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
 
+# 1. ROUTER INITIALISIEREN
 router = APIRouter()
 
 def get_session():
     with Session(engine) as session:
         yield session
 
-# --- 1. REGISTRIERUNG (Jetzt mit Auto-Kategorien!) ---
+# --- GOOGLE AUTHENTIFIZIERUNG (APP & WEB) ---
+GOOGLE_CLIENT_ID = "8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleusercontent.com"
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+@router.post("/google/web")
+async def google_auth_web(request: Request, session: Session = Depends(get_session)):
+    try:
+        # Formular auslesen, das Google uns schickt
+        form_data = await request.form()
+        token = form_data.get("id_token") or form_data.get("credential")
+        
+        if not token:
+            raise HTTPException(status_code=400, detail="Kein Token empfangen")
+
+        # 1. Token bei Google verifizieren
+        id_info = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
+        email = id_info.get("email")
+
+        # 2. Nutzer in DB suchen oder anlegen
+        statement = select(User).where(User.username == email)
+        db_user = session.exec(statement).first()
+
+        if not db_user:
+            db_user = User(username=email, password_hash="GOOGLE_AUTH_USER_NO_PASSWORD")
+            session.add(db_user)
+            session.commit()
+            session.refresh(db_user)
+            
+            # Standard-Kategorien anlegen
+            for cat_name in ["Lebensmittel", "Miete/Wohnen", "Gehalt", "Freizeit", "Transport", "Sparen"]:
+                session.add(Category(name=cat_name, user_id=db_user.id))
+            session.commit()
+
+        # 3. Deinen JWT-Token erstellen
+        access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
+        
+        # 4. Zurück zum Dashboard leiten (Port 8501)
+        return RedirectResponse(url=f"http://localhost:8501/?token={access_token}&user={email}", status_code=303)
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ungültiger Google Token")
+
+# --- 1. NORMALE REGISTRIERUNG ---
 @router.post("/register", response_model=User)
 def register_user(user_input: UserCreate, session: Session = Depends(get_session)):
-    # Check ob User existiert
     statement = select(User).where(User.username == user_input.username)
     existing_user = session.exec(statement).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username bereits vergeben")
     
-    # User anlegen
     hashed_pwd = get_password_hash(user_input.password)
     new_user = User(username=user_input.username, password_hash=hashed_pwd)
     session.add(new_user)
     session.commit()
     session.refresh(new_user)
     
-    # --- NEU: STANDARD KATEGORIEN AUTOMATISCH ANLEGEN ---
     default_categories = ["Lebensmittel", "Miete/Wohnen", "Gehalt", "Freizeit", "Transport", "Sparen"]
-    
     for cat_name in default_categories:
-        # Wir legen die Kategorie für den neuen User an
         cat = Category(name=cat_name, user_id=new_user.id)
         session.add(cat)
-    
-    session.commit() # Speichern
-    # ----------------------------------------------------
+    session.commit()
     
     return new_user
 
-# --- 2. LOGIN ---
+# --- 2. NORMALER LOGIN ---
 @router.post("/token")
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
     statement = select(User).where(User.username == form_data.username)
@@ -54,7 +96,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), ses
     access_token = create_access_token(data={"sub": user.username, "user_id": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- 3. CURRENT USER ---
+# --- 3. CURRENT USER (Sicherheitsüberprüfung) ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)):
