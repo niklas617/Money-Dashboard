@@ -1,34 +1,21 @@
-from __future__ import annotations
 import os
 from pathlib import Path
-from sqlmodel import SQLModel, create_engine
+from sqlalchemy import create_engine
+from sqlmodel import SQLModel
 from backend.app.core.settings import settings
 
-# 1. URL holen (Priorität: Render Umgebungsvariable > Settings > SQLite Fallback)
+# 1. URL holen
 DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Falls keine Render-Variable da ist, nimm die aus den Settings (für lokal)
 if not DATABASE_URL:
     DATABASE_URL = settings.database_url
 
-# --- SICHERHEITS-REINIGUNG (Das fixt den Render-Fehler!) ---
+# --- SICHERHEITS-REINIGUNG ---
 if DATABASE_URL:
-    # Entfernt versehentliche Anführungszeichen ( " oder ' ) am Anfang/Ende
-    DATABASE_URL = DATABASE_URL.strip('"').strip("'")
-    # Entfernt Leerzeichen
-    DATABASE_URL = DATABASE_URL.strip()
-    
-    # Fix für Neon (postgres -> postgresql)
+    DATABASE_URL = DATABASE_URL.strip('"').strip("'").strip()
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# --- DEBUGGING (Damit wir im Log sehen, was passiert) ---
-print(f"🔧 DB-Check: URL-Länge ist {len(str(DATABASE_URL)) if DATABASE_URL else 0}")
-if DATABASE_URL and "postgresql" in DATABASE_URL:
-    print("✅ Erkenne PostgreSQL URL")
-# -------------------------------------------------------
-
-# SQLite Konfiguration (Lokal)
+# SQLite Konfiguration
 connect_args = {}
 if DATABASE_URL and "sqlite" in DATABASE_URL:
     if DATABASE_URL.startswith("sqlite:///./"):
@@ -37,18 +24,31 @@ if DATABASE_URL and "sqlite" in DATABASE_URL:
         DATABASE_URL = f"sqlite:///{db_file.as_posix()}"
     connect_args = {"check_same_thread": False}
 
-# Engine erstellen
+# --- ENGINE KONFIGURATION (Postgres vs SQLite) ---
 try:
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL ist leer!")
-        
-    engine = create_engine(
-        DATABASE_URL,
-        echo=True,
-        connect_args=connect_args
-    )
+
+    # Standard-Argumente
+    engine_args = {"echo": True}
+
+    # Spezielle Einstellungen für PostgreSQL/Neon
+    if "postgresql" in DATABASE_URL:
+        engine_args.update({
+            "pool_pre_ping": True,    # Prueft vor jeder Abfrage: "Ist die DB noch da?"
+            "pool_recycle": 300,      # Verbindungen nach 5 Min refreshen
+            "pool_size": 10,          # Verbindungen im Pool halten
+            "max_overflow": 20,       # Erlaubt kurzzeitige Lastspitzen
+            "connect_args": {"sslmode": "require"} # Erzwingt SSL-Verbindung
+        })
+    else:
+        # SQLite Einstellungen
+        engine_args["connect_args"] = connect_args
+
+    engine = create_engine(DATABASE_URL, **engine_args)
+
 except Exception as e:
-    print(f"❌ FEHLER: Konnte Datenbank nicht verbinden. URL Start: {str(DATABASE_URL)[:10]}...")
+    print(f"❌ FEHLER: Konnte Datenbank nicht verbinden.")
     raise e
 
 def init_db() -> None:
