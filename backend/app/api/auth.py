@@ -57,7 +57,7 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
         
         # 4. Zurück zum Dashboard leiten (Port 8501)
-        return RedirectResponse(url=f"https://money-dashboard-8blm.onrender.com?token={access_token}&user={email}", status_code=303)
+        return RedirectResponse(url=f"https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app?token={access_token}&user={email}", status_code=303)
     except ValueError:
         raise HTTPException(status_code=400, detail="Ungültiger Google Token")
 

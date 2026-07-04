@@ -218,3 +218,8 @@ async def scan_bank_statement(
         raise HTTPException(status_code=400, detail="KI hat kein gültiges Format zurückgegeben.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fehler bei der Verarbeitung: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ungültiger Google Token")
+    except Exception as e:
+        # Fängt alle anderen Fehler (Datenbank, Netzwerk etc.) ab und zeigt sie an!
+        raise HTTPException(status_code=500, detail=f"Backend-Fehler: {str(e)}")
