@@ -5,7 +5,11 @@ from sqlmodel import Session, select
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from google.oauth2 import id_token
-from google.auth.transport import requests
+
+# --- NEUE IMPORTS FÜR KUGELSICHERE SSL-VERBINDUNG ---
+from google.auth.transport import requests as google_requests
+import requests as http_requests
+import certifi
 
 from backend.app.db.database import engine
 from backend.app.db.models import User, UserCreate, Category
@@ -34,8 +38,14 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         if not token:
             raise HTTPException(status_code=400, detail="Kein Token empfangen")
 
-        # 1. Token bei Google verifizieren
-        id_info = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
+        # --- DER BULLETPROOF FIX FÜR DEN TRANSPORT-ERROR ---
+        # Wir bauen eine eigene Session und zwingen sie, die certifi-Zertifikate zu nutzen
+        http_session = http_requests.Session()
+        http_session.verify = certifi.where()
+        g_request = google_requests.Request(session=http_session)
+
+        # 1. Token bei Google verifizieren (jetzt mit der sicheren g_request)
+        id_info = id_token.verify_oauth2_token(token, g_request, GOOGLE_CLIENT_ID)
         email = id_info.get("email")
 
         # 2. Nutzer in DB suchen oder anlegen
@@ -56,10 +66,14 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         # 3. Deinen JWT-Token erstellen
         access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
         
-        # 4. Zurück zum Dashboard leiten (Port 8501)
+        # 4. Zurück zum Dashboard leiten (Deine echte Streamlit-URL)
         return RedirectResponse(url=f"https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app?token={access_token}&user={email}", status_code=303)
+        
     except ValueError:
         raise HTTPException(status_code=400, detail="Ungültiger Google Token")
+    except Exception as e:
+        # Falls etwas schiefgeht, stürzt der Server nicht mehr blind ab!
+        raise HTTPException(status_code=500, detail=f"Backend-Fehler: {str(e)}")
 
 # --- 1. NORMALE REGISTRIERUNG ---
 @router.post("/register", response_model=User)
