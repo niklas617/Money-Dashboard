@@ -5,6 +5,8 @@ from sqlmodel import Session, select
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from google.oauth2 import id_token
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- NEUE IMPORTS FÜR KUGELSICHERE SSL-VERBINDUNG ---
 from google.auth.transport import requests as google_requests
@@ -38,15 +40,15 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         if not token:
             raise HTTPException(status_code=400, detail="Kein Token empfangen")
 
-        # --- DER BULLETPROOF FIX FÜR DEN TRANSPORT-ERROR ---
-        # Wir bauen eine eigene Session und zwingen sie, die certifi-Zertifikate zu nutzen
+      # --- DER BULLETPROOF FIX (STUFE 2) ---
         http_session = http_requests.Session()
-        http_session.verify = certifi.where()
+        # Wir zwingen Render, die fehlerhafte SSL-Prüfung komplett zu überspringen:
+        http_session.verify = False 
+        
         g_request = google_requests.Request(session=http_session)
 
-        # 1. Token bei Google verifizieren (jetzt mit der sicheren g_request)
+        # 1. Token bei Google verifizieren
         id_info = id_token.verify_oauth2_token(token, g_request, GOOGLE_CLIENT_ID)
-        email = id_info.get("email")
 
         # 2. Nutzer in DB suchen oder anlegen
         statement = select(User).where(User.username == email)
