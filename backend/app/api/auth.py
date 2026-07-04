@@ -4,14 +4,11 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from jose import JWTError, jwt
 from pydantic import BaseModel
-from google.oauth2 import id_token
+import requests as http_requests
+
+# Warnungen für das Ignorieren von SSL unterdrücken
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# --- NEUE IMPORTS FÜR KUGELSICHERE SSL-VERBINDUNG ---
-from google.auth.transport import requests as google_requests
-import requests as http_requests
-import certifi
 
 from backend.app.db.database import engine
 from backend.app.db.models import User, UserCreate, Category
@@ -40,15 +37,23 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         if not token:
             raise HTTPException(status_code=400, detail="Kein Token empfangen")
 
-      # --- DER BULLETPROOF FIX (STUFE 2) ---
-        http_session = http_requests.Session()
-        # Wir zwingen Render, die fehlerhafte SSL-Prüfung komplett zu überspringen:
-        http_session.verify = False 
+        # --- DIE NUKLEAR-OPTION: Direkter API-Call zu Google ---
+        # Wir umgehen die fehlerhafte Bibliothek komplett und fragen Google direkt.
+        verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={token}"
+        response = http_requests.get(verify_url, verify=False)
         
-        g_request = google_requests.Request(session=http_session)
-
-        # 1. Token bei Google verifizieren
-        id_info = id_token.verify_oauth2_token(token, g_request, GOOGLE_CLIENT_ID)
+        if response.status_code != 200:
+            raise ValueError("Ungültiger Google Token")
+            
+        id_info = response.json()
+        
+        # Sicherheits-Check: Ist der Token wirklich für unser Dashboard?
+        if id_info.get("aud") != GOOGLE_CLIENT_ID:
+            raise ValueError("Client-ID stimmt nicht überein")
+            
+        email = id_info.get("email")
+        if not email:
+            raise ValueError("Keine Email im Google-Token gefunden")
 
         # 2. Nutzer in DB suchen oder anlegen
         statement = select(User).where(User.username == email)
@@ -71,10 +76,9 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         # 4. Zurück zum Dashboard leiten (Deine echte Streamlit-URL)
         return RedirectResponse(url=f"https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app?token={access_token}&user={email}", status_code=303)
         
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Ungültiger Google Token")
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        # Falls etwas schiefgeht, stürzt der Server nicht mehr blind ab!
         raise HTTPException(status_code=500, detail=f"Backend-Fehler: {str(e)}")
 
 # --- 1. NORMALE REGISTRIERUNG ---
