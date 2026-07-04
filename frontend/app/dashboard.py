@@ -15,7 +15,7 @@ from datetime import date
 try:
     API_URL = st.secrets["API_URL"]
 except Exception:
-    API_URL = os.getenv("API_URL", "http://localhost:8000")
+    API_URL = os.getenv("API_URL", "https://money-dashboard-8blm.onrender.com")
 
 # --- PAGE SETUP ---
 st.set_page_config(
@@ -103,8 +103,7 @@ def login_page():
         
         # 2. Das ist der Endpunkt in deinem FastAPI Backend, der den Token empfängt
 # dashboard.py
-        REDIRECT_URI = "http://localhost:8000/auth/google/web"        
-        # 3. Wir bauen den offiziellen Google-Login-Link zusammen
+        REDIRECT_URI = "https://money-dashboard-8blm.onrender.com/auth/google/web"                     # 3. Wir bauen den offiziellen Google-Login-Link zusammen
         google_auth_url = (
             f"https://accounts.google.com/o/oauth2/v2/auth?"
             f"client_id={GOOGLE_WEB_CLIENT_ID}&"
