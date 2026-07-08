@@ -7,6 +7,7 @@ from sqlmodel import SQLModel, Field
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
+    email: Optional[str] = Field(default=None, unique=True)
     password_hash: str
 
 class Account(SQLModel, table=True):
@@ -78,3 +79,4 @@ class TradeCreate(SQLModel):
     quantity: float
     price_per_unit: float
     date: datetime = Field(default_factory=datetime.utcnow)
+

@@ -58,11 +58,13 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
             raise ValueError("Keine Email im Google-Token gefunden")
 
         # 2. Nutzer in DB suchen oder anlegen
-        statement = select(User).where(User.username == email)
+        # Wir suchen nach der E-Mail ODER dem alten Benutzernamen (für Accounts, die vor diesem Update erstellt wurden)
+        statement = select(User).where((User.email == email) | (User.username == email))
         db_user = session.exec(statement).first()
 
         if not db_user:
-            db_user = User(username=email, password_hash="GOOGLE_AUTH_USER_NO_PASSWORD")
+            # NEUER USER: Speichert die E-Mail ab jetzt fest in der neuen Spalte
+            db_user = User(username=email, email=email, password_hash="GOOGLE_AUTH_USER_NO_PASSWORD")
             session.add(db_user)
             session.commit()
             session.refresh(db_user)
@@ -71,6 +73,12 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
             for cat_name in ["Lebensmittel", "Miete/Wohnen", "Gehalt", "Freizeit", "Transport", "Sparen"]:
                 session.add(Category(name=cat_name, user_id=db_user.id))
             session.commit()
+        else:
+            # MIGRATION: Wenn es ein alter Google-User ist, bei dem die E-Mail-Spalte noch leer ist, füllen wir sie jetzt leise im Hintergrund!
+            if not db_user.email:
+                db_user.email = email
+                session.add(db_user)
+                session.commit()
 
         # 3. Deinen JWT-Token erstellen
         access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
