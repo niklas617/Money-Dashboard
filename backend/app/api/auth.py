@@ -84,8 +84,8 @@ async def google_auth_web(request: Request, session: Session = Depends(get_sessi
         access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
         
         # 4. Zurück zum Dashboard leiten (Deine echte Streamlit-URL)
-        return RedirectResponse(url=f"https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app?token={access_token}&user={email}", status_code=303)
-        
+        return RedirectResponse(url=f"https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app?token={access_token}&user={db_user.username}", status_code=303)
+
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -113,14 +113,30 @@ def register_user(user_input: UserCreate, session: Session = Depends(get_session
     
     return new_user
 
-# --- 2. NORMALER LOGIN ---
+# --- 2. NORMALER LOGIN (Mit E-Mail oder Benutzername) ---
 @router.post("/token")
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    statement = select(User).where(User.username == form_data.username)
+    
+    # 1. Wir suchen den Nutzer entweder über seinen Namen ODER seine E-Mail
+    statement = select(User).where(
+        (User.username == form_data.username) | (User.email == form_data.username)
+    )
     user = session.exec(statement).first()
     
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Falscher Username oder Passwort")
+    # 2. Prüfen, ob der Nutzer überhaupt existiert
+    if not user:
+        raise HTTPException(status_code=400, detail="Falscher Benutzername, E-Mail oder Passwort")
+        
+    # 3. Den "Google-Passwort"-Fehler abfangen
+    if user.password_hash == "GOOGLE_AUTH_USER_NO_PASSWORD":
+        raise HTTPException(
+            status_code=400, 
+            detail="Dieser Account wurde mit Google erstellt. Bitte nutze den Google-Login Button."
+        )
+        
+    # 4. Echtes Passwort prüfen (für normale Registrierungen)
+    if not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Falscher Benutzername, E-Mail oder Passwort")
     
     access_token = create_access_token(data={"sub": user.username, "user_id": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
