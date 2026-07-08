@@ -137,3 +137,18 @@ def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Dep
     if user is None:
         raise credentials_exception
     return user
+
+    # --- 4. KONTO LÖSCHEN ---
+@router.delete("/delete-account")
+def delete_my_account(
+    current_user: User = Depends(get_current_user), 
+    session: Session = Depends(get_session)
+):
+    try:
+        # Löscht den aktuell eingeloggten User aus der Datenbank
+        session.delete(current_user)
+        session.commit()
+        return {"message": "Konto und alle zugehörigen Daten wurden gelöscht."}
+    except Exception as e:
+        session.rollback() # Macht den Vorgang rückgängig, falls etwas schiefgeht
+        raise HTTPException(status_code=500, detail=f"Fehler beim Löschen des Kontos: {str(e)}")

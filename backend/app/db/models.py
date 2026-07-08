@@ -13,12 +13,14 @@ class Account(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     currency: str
-    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    # NEU: ondelete="CASCADE" hinzugefügt
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
 
 class Category(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    # NEU: ondelete="CASCADE" hinzugefügt
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
 
 class Transaction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -26,13 +28,13 @@ class Transaction(SQLModel, table=True):
     note: str
     date: datetime = Field(default_factory=datetime.utcnow)
     
-    account_id: int = Field(foreign_key="account.id")
-    category_id: int = Field(foreign_key="category.id")
-    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    # NEU: ondelete="CASCADE" überall hinzugefügt (Löscht Buchungen, wenn Konto/Kategorie/User gelöscht wird)
+    account_id: int = Field(foreign_key="account.id", ondelete="CASCADE")
+    category_id: int = Field(foreign_key="category.id", ondelete="CASCADE")
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
 
 
 # --- 2. EINGABE-MODELLE (Das, was das Frontend schickt) ---
-# Diese Klassen haben gefehlt!
 
 class UserCreate(SQLModel):
     username: str
@@ -64,7 +66,8 @@ class Trade(SQLModel, table=True):
     quantity: float
     price_per_unit: float
     date: datetime = Field(default_factory=datetime.utcnow)
-    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    # NEU: ondelete="CASCADE" hinzugefügt
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
 
 
 class TradeCreate(SQLModel):

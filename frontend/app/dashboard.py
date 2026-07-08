@@ -476,6 +476,41 @@ def render_konten(accounts: list, selected_acc_id):
                     api_request("POST", "categories/", json={"name": d})
                 st.rerun()
 
+                # ------------------------------------------
+    # TAB 3: EINSTELLUNGEN
+    # ------------------------------------------
+    with tab_settings:
+        c1, c2 = st.columns(2)
+        # ... [Dein bisheriger Code für Konten und Kategorien anlegen] ...
+        
+        # --- NEU: KONTO LÖSCHEN (GEFAHRENZONE) ---
+        st.divider()
+        st.subheader("Kontoeinstellungen & Konto löschen")
+        
+        with st.expander("Konto endgültig löschen"):
+            st.warning(
+                "Achtung: Diese Aktion kann nicht rückgängig gemacht werden. "
+                "Alle deine Konten, Kategorien, Buchungen, Trades und dein Profil "
+                "werden sofort und unwiderruflich gelöscht."
+            )
+            
+            # Doppelte Absicherung
+            confirm_delete = st.checkbox("Ich bin mir sicher und möchte mein Konto unwiderruflich löschen.")
+            
+            if confirm_delete:
+                if st.button("🚨 Konto jetzt löschen", type="primary", use_container_width=True):
+                    # API Request an unsere neue Backend-Route
+                    res = api_request("DELETE", "auth/delete-account")
+                    
+                    if res and res.status_code == 200:
+                        # Lokale Sitzung sofort beenden
+                        st.session_state.token = None
+                        st.session_state.user = None
+                        st.success("Dein Konto wurde erfolgreich gelöscht. Du wirst abgemeldet.")
+                        st.rerun()
+                    else:
+                        st.error("Fehler beim Löschen des Kontos. Bitte versuche es später erneut.")
+
 
 # ==========================================
 # APP START
