@@ -488,6 +488,7 @@ def render_konten(accounts: list, selected_acc_id):
         st.subheader("Kontoeinstellungen & Konto löschen")
 
         # --- PROFIL BEARBEITEN ---
+        # --- Nutzername ändern ---
         st.subheader("👤 Profil")
         with st.expander("Benutzernamen ändern"):
             new_name = st.text_input("Neuer Benutzername", value=st.session_state.user)
@@ -512,7 +513,29 @@ def render_konten(accounts: list, selected_acc_id):
                     elif res and res.status_code == 400:
                         # Zeigt die Fehlermeldung vom Backend an (z. B. "Name vergeben")
                         st.error(res.json().get("detail", "Fehler beim Speichern."))
-        
+
+        # --- PASSWORT BEARBEITEN MANUELLER LOGIN ---
+        with st.expander("Passwort festlegen / ändern"):
+            st.info("Wenn du dich mit Google angemeldet hast, kannst du hier ein Passwort festlegen, um dich in Zukunft auch manuell einloggen zu können.")
+            
+            new_pwd = st.text_input("Neues Passwort", type="password")
+            new_pwd_confirm = st.text_input("Passwort bestätigen", type="password")
+            
+            if st.button("🔐 Passwort speichern"):
+                if len(new_pwd) < 6:
+                    st.error("Das Passwort muss mindestens 6 Zeichen lang sein.")
+                elif new_pwd != new_pwd_confirm:
+                    st.error("Die Passwörter stimmen nicht überein.")
+                else:
+                    # Request an das Backend senden
+                    res = api_request("PUT", "auth/set-password", json={"new_password": new_pwd})
+                    
+                    if res and res.status_code == 200:
+                        st.success("Dein Passwort wurde erfolgreich gespeichert! Du kannst dich beim nächsten Mal manuell damit einloggen.")
+                    else:
+                        st.error("Fehler beim Speichern des Passworts.")
+
+        # --- KONTO LÖSCHEN ---
         with st.expander("Konto endgültig löschen"):
             st.warning(
                 "Achtung: Diese Aktion kann nicht rückgängig gemacht werden. "

@@ -28,6 +28,8 @@ class GoogleAuthRequest(BaseModel):
     id_token: str
 class UserUpdate(BaseModel):
     new_username: str
+class PasswordUpdate(BaseModel):
+    new_password: str
 
 @router.post("/google/web")
 async def google_auth_web(request: Request, session: Session = Depends(get_session)):
@@ -208,3 +210,20 @@ def update_username(
         "new_username": current_user.username,
         "new_token": new_token
     }
+
+# --- 6. PASSWORT FESTLEGEN / ÄNDERN ---
+@router.put("/set-password")
+def set_new_password(
+    password_data: PasswordUpdate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # 1. Das neue Passwort sicher verschlüsseln (hashen)
+    hashed_pwd = get_password_hash(password_data.new_password)
+    
+    # 2. Den Dummy-Text (oder das alte Passwort) mit dem neuen Hash überschreiben
+    current_user.password_hash = hashed_pwd
+    session.add(current_user)
+    session.commit()
+    
+    return {"message": "Passwort erfolgreich festgelegt. Du kannst dich jetzt manuell einloggen!"}
