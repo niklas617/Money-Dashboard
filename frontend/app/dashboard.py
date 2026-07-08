@@ -486,6 +486,32 @@ def render_konten(accounts: list, selected_acc_id):
         # --- NEU: KONTO LÖSCHEN (GEFAHRENZONE) ---
         st.divider()
         st.subheader("Kontoeinstellungen & Konto löschen")
+
+        # --- PROFIL BEARBEITEN ---
+        st.subheader("👤 Profil")
+        with st.expander("Benutzernamen ändern"):
+            new_name = st.text_input("Neuer Benutzername", value=st.session_state.user)
+            
+            if st.button("💾 Namen speichern"):
+                if new_name == st.session_state.user:
+                    st.warning("Das ist bereits dein aktueller Name.")
+                elif len(new_name) < 3:
+                    st.error("Der Name muss mindestens 3 Zeichen lang sein.")
+                else:
+                    # Request an das Backend senden
+                    res = api_request("PUT", "auth/update-username", json={"new_username": new_name})
+                    
+                    if res and res.status_code == 200:
+                        data = res.json()
+                        # Den neuen Namen und den frischen Token direkt im Session State speichern
+                        st.session_state.user = data["new_username"]
+                        st.session_state.token = data["new_token"]
+                        
+                        st.success("Dein Name wurde erfolgreich geändert!")
+                        st.rerun()
+                    elif res and res.status_code == 400:
+                        # Zeigt die Fehlermeldung vom Backend an (z. B. "Name vergeben")
+                        st.error(res.json().get("detail", "Fehler beim Speichern."))
         
         with st.expander("Konto endgültig löschen"):
             st.warning(

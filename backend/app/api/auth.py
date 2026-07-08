@@ -26,6 +26,8 @@ GOOGLE_CLIENT_ID = "8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleuserc
 
 class GoogleAuthRequest(BaseModel):
     id_token: str
+class UserUpdate(BaseModel):
+    new_username: str
 
 @router.post("/google/web")
 async def google_auth_web(request: Request, session: Session = Depends(get_session)):
@@ -152,3 +154,33 @@ def delete_my_account(
     except Exception as e:
         session.rollback() # Macht den Vorgang rückgängig, falls etwas schiefgeht
         raise HTTPException(status_code=500, detail=f"Fehler beim Löschen des Kontos: {str(e)}")
+    
+    
+# --- 5. BENUTZERNAMEN ÄNDERN ---
+@router.put("/update-username")
+def update_username(
+    update_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # 1. Prüfen, ob der neue Name schon von jemand anderem belegt ist
+    statement = select(User).where(User.username == update_data.new_username)
+    existing_user = session.exec(statement).first()
+    
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Dieser Benutzername ist bereits vergeben.")
+
+    # 2. Namen in der Datenbank aktualisieren
+    current_user.username = update_data.new_username
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+
+    # 3. WICHTIG: Einen neuen Token ausstellen, da sich der Name (sub) geändert hat!
+    new_token = create_access_token(data={"sub": current_user.username, "user_id": current_user.id})
+
+    return {
+        "message": "Name erfolgreich geändert", 
+        "new_username": current_user.username,
+        "new_token": new_token
+    }
