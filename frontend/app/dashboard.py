@@ -308,40 +308,41 @@ def render_konten(accounts: list, selected_acc_id):
 
             st.divider()
 
-        # --- 7. KONTOVERLAUF (LINE CHART) ---
-
-            st.subheader("Verlauf des Kontostands")
+        # --- 7. KONTOVERLAUF (MONATLICH ÜBER DAS JAHR) ---
+            st.subheader("Entwicklung im Jahresverlauf")
+            
+            # Wir nutzen das gesamte Jahr 'df' statt 'df_monat'
             df_line = df.copy()
             df_line["sort_date"] = pd.to_datetime(df_line["date"], format="%d.%m.%Y")
-            df_daily = (
-                df_line.groupby(["sort_date", "date"])["amount"].sum().reset_index()
-            )
-            df_daily = df_daily.sort_values("sort_date")
-            df_daily["Kontostand"] = df_daily["amount"].cumsum()
-
-        # ... (dein restlicher Code vorher: df_daily berechnung) ...
+            
+            # Gruppieren nach Monat statt nach vollem Datum
+            df_monthly = df_line.groupby(df_line["sort_date"].dt.to_period("M"))["amount"].sum().reset_index()
+            df_monthly["sort_date"] = df_monthly["sort_date"].dt.to_timestamp()
+            
+            # Den Kontostand über die Monate hinweg aufsummieren (Cumsum)
+            df_monthly["Kontostand"] = df_monthly["amount"].cumsum()
             
             fig_line = px.line(
-                df_daily,
-                x="date",
+                df_monthly,
+                x="sort_date",
                 y="Kontostand",
                 markers=True,
-                title="Entwicklung über Zeit",
-                labels={"date": "Datum", "Kontostand": "Saldo (€)"},
+                title="Kontostand-Entwicklung über die Monate",
+                labels={"sort_date": "Monat", "Kontostand": "Saldo (€)"},
             )
 
+            # Das "Profi-Design" hinzufügen
             fig_line.update_traces(
                 mode="lines+markers",
-                line=dict(color="#2ecc71", width=3), 
-                marker=dict(size=8),
-                fill="tozeroy" 
+                line=dict(color="#2ecc71", width=3),
+                fill="tozeroy"
             )
             
             fig_line.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", # Transparenter Hintergrund
-                plot_bgcolor="rgba(0,0,0,0)",  # Transparenter Chart-Bereich
-                hovermode="x unified",         # Zeigt alle Infos beim Drüberfahren an
-                xaxis=dict(showgrid=False),    # Gitterlinien aus für cleanen Look
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                hovermode="x unified",
+                xaxis=dict(showgrid=False),
                 yaxis=dict(showgrid=True, gridcolor="#eee")
             )
             
