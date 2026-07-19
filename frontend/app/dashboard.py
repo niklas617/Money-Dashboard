@@ -10,6 +10,7 @@ import pandas as pd
 import plotly.express as px
 import portfolio_tab
 from datetime import date
+from datetime import datetime
 
 # --- KONFIGURATION ---
 try:
@@ -185,69 +186,118 @@ def render_konten(accounts: list, selected_acc_id):
     if transactions:
         df = pd.DataFrame(transactions)
         df["amount"] = pd.to_numeric(df["amount"])
-        df["full_datetime"] = pd.to_datetime(df["date"])
-        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%d.%m.%Y")
+    
+    # --- HIER IST DEIN NEUER CODE ---
+        df["full_datetime"] = pd.to_datetime(df["date"], errors="coerce")
+        df["full_datetime"] = df["full_datetime"].fillna(pd.Timestamp.today())
+    
+    # Das Datum für die Anzeige formatieren (nutzt jetzt das reparierte full_datetime)
+        df["date"] = df["full_datetime"].dt.strftime("%d.%m.%Y")
+    
         cat_map_rev = {c["id"]: c["name"] for c in categories}
         df["Kategorie"] = df["category_id"].map(cat_map_rev).fillna("Unbekannt")
 
-    tab_overview, tab_bookings, tab_settings = st.tabs(
+        tab_overview, tab_bookings, tab_settings = st.tabs(
         ["📊 Übersicht & Charts", "📝 Buchungen", "⚙️ Einstellungen"]
-    )
+)
 
-    # ------------------------------------------
-    # TAB 1: ÜBERSICHT
-    # ------------------------------------------
+# ------------------------------------------
+# TAB 1: ÜBERSICHT
+# ------------------------------------------
     with tab_overview:
+    # --- HIER SIND 8 LEERZEICHEN VORNE ---
         acc_name = next((a["name"] for a in accounts if a["id"] == selected_acc_id), "")
-        st.header(f"{acc_name} — {current_year}")
+        st.header(f"📊 Übersicht: {acc_name}")
 
         if df.empty:
             st.info("Noch keine Buchungen für dieses Jahr vorhanden.")
         else:
-            income = df[df["amount"] > 0]["amount"].sum()
-            expenses = df[df["amount"] < 0]["amount"].sum()
-            balance = income + expenses
+        # --- HIER SIND 12 LEERZEICHEN VORNE ---
+        
+        # --- 1. FILTER-DROPDOWN ---
+            heute = datetime.now()
+            monate = [
+            "Januar", "Februar", "März", "April", "Mai", "Juni", 
+            "Juli", "August", "September", "Oktober", "November", "Dezember"
+        ]
+        
+        # Dropdown für den Monat anzeigen (Standard ist der aktuelle Monat)
+        gewaehlter_monat_name = st.selectbox(
+            "Monat auswerten:", 
+            monate, 
+            index=heute.month - 1
+        )
+        # Den Namen wieder in eine Zahl für Pandas verwandeln (Januar = 1)
+        gewaehlter_monat_zahl = monate.index(gewaehlter_monat_name) + 1
 
-            kpi1, kpi2, kpi3 = st.columns(3)
-            kpi1.metric("Einnahmen", f"{income:,.2f} €")
-            kpi2.metric("Ausgaben", f"{expenses:,.2f} €", delta_color="inverse")
-            kpi3.metric("Saldo (Jahr)", f"{balance:,.2f} €", delta=f"{balance:+.2f} €")
+        # --- 2. BERECHNUNG MIT PANDAS ---
+        # A) Gesamtsaldo (Alle Buchungen des Jahres)
+        gesamt_income = df[df["amount"] > 0]["amount"].sum()
+        gesamt_expenses = df[df["amount"] < 0]["amount"].sum()
+        aktuelles_saldo = gesamt_income + gesamt_expenses
 
-            st.divider()
+        # B) Monatssaldo (Gefiltert auf den gewählten Monat)
+        df_monat = df[df["full_datetime"].dt.month == gewaehlter_monat_zahl]
+        
+        einnahmen_monat = df_monat[df_monat["amount"] > 0]["amount"].sum()
+        ausgaben_monat = df_monat[df_monat["amount"] < 0]["amount"].sum()
 
-            df_bar = pd.DataFrame(
-                {
-                    "Typ": ["Einnahmen", "Ausgaben"],
-                    "Betrag": [income, abs(expenses)],
-                }
-            )
-            fig_bar = px.bar(
-                df_bar,
-                x="Typ",
-                y="Betrag",
-                color="Typ",
-                color_discrete_map={"Einnahmen": "#2ecc71", "Ausgaben": "#e74c3c"},
-                title="Einnahmen vs. Ausgaben",
-            )
-            fig_bar.update_layout(bargap=0.6, showlegend=False)
-            st.plotly_chart(fig_bar, width="stretch")
+        # --- 3. KENNZAHLEN ANZEIGEN ---
+        kpi1, kpi2, kpi3 = st.columns(3)
+        kpi1.metric("Gesamt-Kontostand", f"{aktuelles_saldo:,.2f} €")
+        kpi2.metric(f"Einnahmen ({gewaehlter_monat_name})", f"+{einnahmen_monat:,.2f} €")
+        kpi3.metric(f"Ausgaben ({gewaehlter_monat_name})", f"{ausgaben_monat:,.2f} €", delta_color="inverse")
 
-            c_pie1, c_pie2 = st.columns(2)
+        st.divider()
 
-            with c_pie1:
-                st.subheader("Einnahmen nach Kategorie")
-                df_inc = df[df["amount"] > 0]
-                if not df_inc.empty:
-                    fig_inc = px.pie(
-                        df_inc,
-                        values="amount",
-                        names="Kategorie",
-                        hole=0.4,
-                        labels={"amount": "Einnahmen"},
-                    )
-                    st.plotly_chart(fig_inc, width="stretch")
-                else:
-                    st.info("Keine Einnahmen.")
+       # --- 4. DIAGRAMME (Synchronisiert mit Monat) ---
+        df_bar = pd.DataFrame(
+            {
+                "Typ": ["Einnahmen", "Ausgaben"],
+                "Betrag": [einnahmen_monat, abs(ausgaben_monat)], # Nutzt jetzt die Monats-Werte!
+            }
+        )
+        fig_bar = px.bar(
+            df_bar,
+            x="Typ",
+            y="Betrag",
+            color="Typ",
+            color_discrete_map={"Einnahmen": "#2ecc71", "Ausgaben": "#e74c3c"},
+            title=f"Einnahmen vs. Ausgaben im {gewaehlter_monat_name}",
+        )
+        fig_bar.update_layout(bargap=0.6, showlegend=False)
+        st.plotly_chart(fig_bar, width="stretch")
+
+        c_pie1, c_pie2 = st.columns(2)
+
+        with c_pie1:
+            st.subheader(f"Einnahmen nach Kategorie")
+            # Nutzt jetzt df_monat statt df
+            df_inc = df_monat[df_monat["amount"] > 0]
+            if not df_inc.empty:
+                fig_inc = px.pie(
+                    df_inc,
+                    values="amount",
+                    names="Kategorie",
+                    hole=0.4,
+                    labels={"amount": "Einnahmen"},
+                )
+                st.plotly_chart(fig_inc, width="stretch")
+            else:
+                st.info(f"Keine Einnahmen im {gewaehlter_monat_name}.")
+
+        with c_pie2:
+            st.subheader(f"Ausgaben nach Kategorie")
+            # Nutzt jetzt df_monat statt df
+            df_exp = df_monat[df_monat["amount"] < 0].copy()
+            df_exp["Ausgaben"] = df_exp["amount"].abs()
+            if not df_exp.empty:
+                fig_exp = px.pie(
+                    df_exp, values="Ausgaben", names="Kategorie", hole=0.4
+                )
+                st.plotly_chart(fig_exp, width="stretch")
+            else:
+                st.info(f"Keine Ausgaben im {gewaehlter_monat_name}.")
 
             with c_pie2:
                 st.subheader("Ausgaben nach Kategorie")
