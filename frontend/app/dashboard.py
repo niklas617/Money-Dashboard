@@ -251,10 +251,13 @@ def render_konten(accounts: list, selected_acc_id):
         st.divider()
 
        # --- 4. DIAGRAMME (Synchronisiert mit Monat) ---
+
+      # --- BALKENDIAGRAMM ---
         df_bar = pd.DataFrame(
             {
                 "Typ": ["Einnahmen", "Ausgaben"],
-                "Betrag": [einnahmen_monat, abs(ausgaben_monat)], # Nutzt jetzt die Monats-Werte!
+                # NEU: Wir nutzen jetzt die gefilterten Monats-Werte!
+                "Betrag": [einnahmen_monat, abs(ausgaben_monat)], 
             }
         )
         fig_bar = px.bar(
@@ -269,6 +272,8 @@ def render_konten(accounts: list, selected_acc_id):
         st.plotly_chart(fig_bar, width="stretch")
 
         c_pie1, c_pie2 = st.columns(2)
+
+        # --- 5. TORTENDIAGRAMME Einnahmen ---
 
         with c_pie1:
             st.subheader(f"Einnahmen nach Kategorie")
@@ -286,6 +291,8 @@ def render_konten(accounts: list, selected_acc_id):
             else:
                 st.info(f"Keine Einnahmen im {gewaehlter_monat_name}.")
 
+        # --- 6. TORTENDIAGRAMME Ausgaben ---
+
         with c_pie2:
             st.subheader(f"Ausgaben nach Kategorie")
             # Nutzt jetzt df_monat statt df
@@ -300,6 +307,9 @@ def render_konten(accounts: list, selected_acc_id):
                 st.info(f"Keine Ausgaben im {gewaehlter_monat_name}.")
 
             st.divider()
+
+        # --- 7. KONTOVERLAUF (LINE CHART) ---
+
             st.subheader("Verlauf des Kontostands")
             df_line = df.copy()
             df_line["sort_date"] = pd.to_datetime(df_line["date"], format="%d.%m.%Y")
@@ -413,40 +423,55 @@ def render_konten(accounts: list, selected_acc_id):
         filtered_txs = flt.json() if flt and flt.ok else []
 
         if st.session_state.get("edit_tx_id"):
-            st.divider()
-            st.subheader("📝 Buchung bearbeiten")
-            tx_to_edit = next(
-                (t for t in filtered_txs if t["id"] == st.session_state.edit_tx_id),
-                None,
-            )
-            if tx_to_edit:
-                with st.form("edit_form"):
-                    new_amt = st.number_input(
-                        "Betrag", value=float(abs(tx_to_edit["amount"]))
+         st.divider()
+
+         
+        st.subheader("📝 Buchung bearbeiten")
+        tx_to_edit = next(
+            (t for t in filtered_txs if t["id"] == st.session_state.edit_tx_id),
+            None,
+        )
+        
+        if tx_to_edit:
+            # 1. Das alte Datum aus der Datenbank lesbar machen
+            try:
+                altes_datum = datetime.fromisoformat(tx_to_edit["date"].replace("Z", "+00:00")).date()
+            except Exception:
+                altes_datum = date.today()
+
+            with st.form("edit_form"):
+                new_amt = st.number_input(
+                    "Betrag", value=float(abs(tx_to_edit["amount"]))
+                )
+                new_note = st.text_input("Notiz", value=tx_to_edit["note"])
+                
+                # --- NEU: Der Kalender für das Datum ---
+                new_date = st.date_input("Datum", value=altes_datum)
+                
+                col_a, col_b = st.columns(2)
+                if col_a.form_submit_button("Speichern"):
+                    final_val = -new_amt if tx_to_edit["amount"] < 0 else new_amt
+                    res = api_request(
+                        "PUT",
+                        f"transactions/{tx_to_edit['id']}",
+                        json={
+                            "amount": final_val,
+                            "note": new_note,
+                            "category_id": tx_to_edit["category_id"],
+                            "account_id": tx_to_edit["account_id"],
+                            # --- NEU: Das geänderte Datum ans Backend schicken ---
+                            "date": new_date.isoformat(),
+                        },
                     )
-                    new_note = st.text_input("Notiz", value=tx_to_edit["note"])
-                    col_a, col_b = st.columns(2)
-                    if col_a.form_submit_button("Speichern"):
-                        final_val = -new_amt if tx_to_edit["amount"] < 0 else new_amt
-                        res = api_request(
-                            "PUT",
-                            f"transactions/{tx_to_edit['id']}",
-                            json={
-                                "amount": final_val,
-                                "note": new_note,
-                                "category_id": tx_to_edit["category_id"],
-                                "account_id": tx_to_edit["account_id"],
-                                "date": tx_to_edit["date"],
-                            },
-                        )
-                        if res and res.ok:
-                            st.success("Aktualisiert!")
-                            del st.session_state.edit_tx_id
-                            st.rerun()
-                    if col_b.form_submit_button("Abbrechen"):
+                    if res and res.ok:
+                        st.success("Aktualisiert!")
                         del st.session_state.edit_tx_id
                         st.rerun()
-            st.divider()
+                        
+                if col_b.form_submit_button("Abbrechen"):
+                    del st.session_state.edit_tx_id
+                    st.rerun()
+        st.divider()
 
         if filtered_txs:
             filtered_txs.sort(key=lambda x: x.get("id", 0), reverse=True)
