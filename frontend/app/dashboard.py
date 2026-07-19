@@ -319,15 +319,33 @@ def render_konten(accounts: list, selected_acc_id):
             df_daily = df_daily.sort_values("sort_date")
             df_daily["Kontostand"] = df_daily["amount"].cumsum()
 
+        # ... (dein restlicher Code vorher: df_daily berechnung) ...
+            
             fig_line = px.line(
                 df_daily,
                 x="date",
                 y="Kontostand",
                 markers=True,
                 title="Entwicklung über Zeit",
-                labels={"date": "Datum"},
+                labels={"date": "Datum", "Kontostand": "Saldo (€)"},
             )
-            st.plotly_chart(fig_line, width="stretch")
+
+            fig_line.update_traces(
+                mode="lines+markers",
+                line=dict(color="#2ecc71", width=3), 
+                marker=dict(size=8),
+                fill="tozeroy" 
+            )
+            
+            fig_line.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", # Transparenter Hintergrund
+                plot_bgcolor="rgba(0,0,0,0)",  # Transparenter Chart-Bereich
+                hovermode="x unified",         # Zeigt alle Infos beim Drüberfahren an
+                xaxis=dict(showgrid=False),    # Gitterlinien aus für cleanen Look
+                yaxis=dict(showgrid=True, gridcolor="#eee")
+            )
+            
+            st.plotly_chart(fig_line, use_container_width=True)
 
     # ------------------------------------------
     # TAB 2: BUCHUNGEN
