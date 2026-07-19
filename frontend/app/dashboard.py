@@ -509,7 +509,7 @@ def render_konten(accounts: list, selected_acc_id):
                         st.rerun()
         else:
             st.info("Keine Buchungen gefunden.")
-            
+
     # ------------------------------------------
     # TAB 3: EINSTELLUNGEN
     # ------------------------------------------
