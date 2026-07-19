@@ -438,7 +438,6 @@ def render_konten(accounts: list, selected_acc_id):
         )
         
         if tx_to_edit:
-            df["date"] = df["full_datetime"].dt.strftime("%d.%m.%Y")
             try:
                 altes_datum = datetime.fromisoformat(tx_to_edit["date"].replace("Z", "+00:00")).date()
             except Exception:
@@ -491,8 +490,19 @@ def render_konten(accounts: list, selected_acc_id):
             cat_lookup = {c["id"]: c["name"] for c in categories}
             
             for tx in filtered_txs:
+              # 1. Datum umwandeln
+                raw_date = tx.get("date", "")
+                try:
+                    # Wandelt '2026-07-19' zu '19.07.2026' um
+                    formatted_date = datetime.fromisoformat(raw_date.replace("Z", "+00:00")).strftime("%d.%m.%Y")
+                except:
+                    formatted_date = raw_date[:10] # Fallback falls das Format mal nicht passt
+                
                 c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 3, 2, 1, 1])
-                c1.write(str(tx.get("date", ""))[:10])
+                
+                # 2. Das formatierte Datum hier ausgeben
+                c1.write(formatted_date) 
+                
                 c2.write(cat_lookup.get(tx.get("category_id"), "Unbekannt"))
                 c3.write(tx.get("note", ""))
                 
