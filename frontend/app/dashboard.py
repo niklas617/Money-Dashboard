@@ -422,8 +422,10 @@ def render_konten(accounts: list, selected_acc_id):
         flt = api_request("GET", "transactions/filter", params=params)
         filtered_txs = flt.json() if flt and flt.ok else []
 
+
         # --- Buchungen bearbeiten ---
     edit_id = st.session_state.get("edit_tx_id")
+    df["date"] = df["full_datetime"].dt.strftime("%d.%m.%Y")
     
     if edit_id:
         st.divider()
