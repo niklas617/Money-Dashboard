@@ -425,7 +425,7 @@ def render_konten(accounts: list, selected_acc_id):
 
         # --- Buchungen bearbeiten ---
     edit_id = st.session_state.get("edit_tx_id")
-    df["date"] = df["full_datetime"].dt.strftime("%d.%m.%Y")
+
     
     if edit_id:
         st.divider()
@@ -438,6 +438,7 @@ def render_konten(accounts: list, selected_acc_id):
         )
         
         if tx_to_edit:
+            df["date"] = df["full_datetime"].dt.strftime("%d.%m.%Y")
             try:
                 altes_datum = datetime.fromisoformat(tx_to_edit["date"].replace("Z", "+00:00")).date()
             except Exception:
