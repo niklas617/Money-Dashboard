@@ -299,18 +299,6 @@ def render_konten(accounts: list, selected_acc_id):
             else:
                 st.info(f"Keine Ausgaben im {gewaehlter_monat_name}.")
 
-            with c_pie2:
-                st.subheader("Ausgaben nach Kategorie")
-                df_exp = df[df["amount"] < 0].copy()
-                df_exp["Ausgaben"] = df_exp["amount"].abs()
-                if not df_exp.empty:
-                    fig_exp = px.pie(
-                        df_exp, values="Ausgaben", names="Kategorie", hole=0.4
-                    )
-                    st.plotly_chart(fig_exp, width="stretch")
-                else:
-                    st.info("Keine Ausgaben.")
-
             st.divider()
             st.subheader("Verlauf des Kontostands")
             df_line = df.copy()
