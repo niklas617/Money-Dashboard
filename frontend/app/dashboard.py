@@ -192,7 +192,7 @@ def render_konten(accounts: list, selected_acc_id):
         df["full_datetime"] = df["full_datetime"].fillna(pd.Timestamp.today())
     
     # Das Datum für die Anzeige formatieren (nutzt jetzt das reparierte full_datetime)
-        df["date"] = df["full_datetime"].dt.strftime("%d.%m.%Y")
+        df["date"] = df["full_datetime"].dt.strftime("%d/%m/%Y")
     
         cat_map_rev = {c["id"]: c["name"] for c in categories}
         df["Kategorie"] = df["category_id"].map(cat_map_rev).fillna("Unbekannt")
