@@ -333,8 +333,8 @@ def render_konten(accounts: list, selected_acc_id):
 
             # Das "Profi-Design" hinzufügen
             fig_line.update_traces(
-                mode="lines+markers",
-                line=dict(color="#2ecc71", width=3),
+                mode="lines",
+                line=dict(color="#2ecc71", width=3, shape="spline"),
                 fill="tozeroy"
             )
             
@@ -343,9 +343,14 @@ def render_konten(accounts: list, selected_acc_id):
                 plot_bgcolor="rgba(0,0,0,0)",
                 hovermode="x unified",
                 xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="#eee")
-            )
-            
+                yaxis=dict(
+                showgrid=True, 
+                gridcolor="#424242",
+                range=[df_monthly["Kontostand"].min() * 1.2,
+                       df_monthly["Kontostand"].max() * 1.2]
+                 ) 
+) 
+         
             st.plotly_chart(fig_line, use_container_width=True)
 
     # ------------------------------------------
