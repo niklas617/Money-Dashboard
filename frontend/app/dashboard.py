@@ -474,6 +474,7 @@ def render_konten(accounts: list, selected_acc_id):
                     st.rerun()
         st.divider()
 
+    with st.expander("📋 Alle Buchungen anzeigen", expanded=True):
         if filtered_txs:
             filtered_txs.sort(key=lambda x: x.get("id", 0), reverse=True)
             st.write("---")
@@ -483,18 +484,22 @@ def render_konten(accounts: list, selected_acc_id):
             h3.markdown("**Notiz**")
             h4.markdown("**Betrag**")
             st.write("---")
+            
             cat_lookup = {c["id"]: c["name"] for c in categories}
+            
             for tx in filtered_txs:
                 c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 3, 2, 1, 1])
                 c1.write(str(tx.get("date", ""))[:10])
                 c2.write(cat_lookup.get(tx.get("category_id"), "Unbekannt"))
                 c3.write(tx.get("note", ""))
+                
                 amt_val = tx.get("amount", 0)
                 clr = "red" if amt_val < 0 else "green"
                 c4.markdown(
-                    f"<span style='color:{clr}; font-weight:bold'>{amt_val:.2f} €</span>",
+                    f"{amt_val:.2f} €",
                     unsafe_allow_html=True,
                 )
+                
                 if c5.button("✏️", key=f"edit_{tx['id']}"):
                     st.session_state.edit_tx_id = tx["id"]
                     st.rerun()
@@ -504,7 +509,7 @@ def render_konten(accounts: list, selected_acc_id):
                         st.rerun()
         else:
             st.info("Keine Buchungen gefunden.")
-
+            
     # ------------------------------------------
     # TAB 3: EINSTELLUNGEN
     # ------------------------------------------
