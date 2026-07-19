@@ -422,18 +422,20 @@ def render_konten(accounts: list, selected_acc_id):
         flt = api_request("GET", "transactions/filter", params=params)
         filtered_txs = flt.json() if flt and flt.ok else []
 
-        if st.session_state.get("edit_tx_id"):
-         st.divider()
-
-         
+        # --- Buchungen bearbeiten ---
+    edit_id = st.session_state.get("edit_tx_id")
+    
+    if edit_id:
+        st.divider()
         st.subheader("📝 Buchung bearbeiten")
+        
+        # Hier nutzen wir jetzt unsere sichere Variable "edit_id"
         tx_to_edit = next(
-            (t for t in filtered_txs if t["id"] == st.session_state.edit_tx_id),
+            (t for t in filtered_txs if t["id"] == edit_id),
             None,
         )
         
         if tx_to_edit:
-            # 1. Das alte Datum aus der Datenbank lesbar machen
             try:
                 altes_datum = datetime.fromisoformat(tx_to_edit["date"].replace("Z", "+00:00")).date()
             except Exception:
@@ -444,8 +446,6 @@ def render_konten(accounts: list, selected_acc_id):
                     "Betrag", value=float(abs(tx_to_edit["amount"]))
                 )
                 new_note = st.text_input("Notiz", value=tx_to_edit["note"])
-                
-                # --- NEU: Der Kalender für das Datum ---
                 new_date = st.date_input("Datum", value=altes_datum)
                 
                 col_a, col_b = st.columns(2)
@@ -459,17 +459,18 @@ def render_konten(accounts: list, selected_acc_id):
                             "note": new_note,
                             "category_id": tx_to_edit["category_id"],
                             "account_id": tx_to_edit["account_id"],
-                            # --- NEU: Das geänderte Datum ans Backend schicken ---
                             "date": new_date.isoformat(),
                         },
                     )
                     if res and res.ok:
                         st.success("Aktualisiert!")
-                        del st.session_state.edit_tx_id
+                        # NEU: Sicheres Löschen (stürzt nicht ab, wenn die ID schon weg ist)
+                        st.session_state.pop("edit_tx_id", None)
                         st.rerun()
                         
                 if col_b.form_submit_button("Abbrechen"):
-                    del st.session_state.edit_tx_id
+                    # NEU: Sicheres Löschen
+                    st.session_state.pop("edit_tx_id", None)
                     st.rerun()
         st.divider()
 
