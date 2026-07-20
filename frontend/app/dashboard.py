@@ -453,11 +453,11 @@ def render_konten(accounts: list, selected_acc_id):
 
 
         # --- Buchungen bearbeiten ---
-    edit_id = st.session_state.get("edit_tx_id")
+        edit_id = st.session_state.get("edit_tx_id")
 
     
-    if edit_id:
-        st.divider()
+        if edit_id:
+           st.divider()
         st.subheader("📝 Buchung bearbeiten")
         
         # Hier nutzen wir jetzt unsere sichere Variable "edit_id"
