@@ -623,6 +623,7 @@ def render_konten(accounts: list, selected_acc_id):
                 ]:
                     api_request("POST", "categories/", json={"name": d})
                 st.rerun()
+
             st.divider()
 
 
@@ -639,8 +640,8 @@ def render_konten(accounts: list, selected_acc_id):
                         if res and res.status_code == 200:
                             st.cache_data.clear()
                             st.rerun()
-                    else:
-                        st.error("Fehler. Wird diese Kategorie noch für Buchungen genutzt?")
+                        else:
+                            st.error("Fehler. Wird diese Kategorie noch für Buchungen genutzt?")
             else:
                 st.info("Keine Kategorien vorhanden.")
 
