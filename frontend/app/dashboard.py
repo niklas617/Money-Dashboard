@@ -351,7 +351,7 @@ def render_konten(accounts: list, selected_acc_id):
                     showline=False,
                     color="#888"         # Dezentes Grau für die Zahlen
                 ),
-                margin=dict(l=0, r=0, t=40, b=0), # Chart nutzt den Platz voll aus
+                margin=dict(l=0, r=0, t=80, b=0), # Chart nutzt den Platz voll aus
             )
             
             st.plotly_chart(fig_line, use_container_width=True)
