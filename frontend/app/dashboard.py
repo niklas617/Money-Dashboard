@@ -578,7 +578,72 @@ def render_konten(accounts: list, selected_acc_id):
     # ------------------------------------------
     # TAB 3: EINSTELLUNGEN
     # ------------------------------------------
-    
+        with tab_settings:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader("🏦 Neues Konto anlegen")
+                n_acc = st.text_input("Kontoname", key="n_acc")
+                curr = st.selectbox("Währung", ["EUR", "USD"], key="curr")
+                if st.button("Konto anlegen"):
+                    api_request("POST", "accounts/", json={"name": n_acc, "currency": curr})
+                    st.rerun()
+                st.divider()
+
+                # --- VORHANDENE KONTEN ANZEIGEN UND LÖSCHEN ---
+                st.subheader("🗂️ Vorhandene Konten")
+                for a in accounts:
+                    # Wir bauen zwei kleine Spalten: Text links, Mülleimer rechts
+                    col_text, col_btn = st.columns([5, 1])
+                    col_text.write(f"• {a['name']} ({a['currency']})")
+                
+                    # Button mit einzigartigem Key (ID des Kontos)
+                    if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
+                        res = api_request("DELETE", f"accounts/{a['id']}")
+                        if res and res.status_code == 200:
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error("Fehler. Möglicherweise existieren noch Buchungen auf diesem Konto.")
+
+                # --- KATEGORIEN ANLEGEN UND LÖSCHEN ---
+            with c2:
+                st.subheader("🏷️ Neue Kategorie")
+                n_cat = st.text_input("Kategoriename", key="n_cat")
+                if st.button("Kategorie anlegen"):
+                    api_request("POST", "categories/", json={"name": n_cat})
+                    st.rerun()
+                if st.button("🔄 Standard-Kategorien laden"):
+                    for d in [
+                        "Lebensmittel",
+                        "Miete",
+                        "Gehalt",
+                        "Freizeit",
+                        "Transport",
+                        "Sparen",
+                    ]:
+                        api_request("POST", "categories/", json={"name": d})
+                    st.rerun()
+
+                st.divider()
+
+
+                st.subheader("🗂️ Vorhandene Kategorien")
+            
+            # Die Liste 'categories' haben wir ganz oben in render_konten schon geladen
+                if categories:
+                    for c in categories:
+                        col_text, col_btn = st.columns([5, 1])
+                        col_text.write(f"• {c['name']}")
+                    
+                        if col_btn.button("🗑️", key=f"del_cat_{c['id']}"):
+                            res = api_request("DELETE", f"categories/{c['id']}")
+                            if res and res.status_code == 200:
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error("Fehler. Wird diese Kategorie noch für Buchungen genutzt?")
+                else:
+                    st.info("Keine Kategorien vorhanden.")
 
                 # ------------------------------------------
     # TAB 3: EINSTELLUNGEN
