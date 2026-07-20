@@ -591,19 +591,19 @@ def render_konten(accounts: list, selected_acc_id):
 
             # --- VORHANDENE KONTEN ANZEIGEN UND LÖSCHEN ---
             st.subheader("🗂️ Vorhandene Konten")
-        for a in accounts:
-            # Wir bauen zwei kleine Spalten: Text links, Mülleimer rechts
-            col_text, col_btn = st.columns([5, 1])
-            col_text.write(f"• {a['name']} ({a['currency']})")
+            for a in accounts:
+                # Wir bauen zwei kleine Spalten: Text links, Mülleimer rechts
+                col_text, col_btn = st.columns([5, 1])
+                col_text.write(f"• {a['name']} ({a['currency']})")
             
-            # Button mit einzigartigem Key (ID des Kontos)
-            if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
-                res = api_request("DELETE", f"accounts/{a['id']}")
-                if res and res.status_code == 200:
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error("Fehler. Möglicherweise existieren noch Buchungen auf diesem Konto.")
+                # Button mit einzigartigem Key (ID des Kontos)
+                if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
+                    res = api_request("DELETE", f"accounts/{a['id']}")
+                    if res and res.status_code == 200:
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("Fehler. Möglicherweise existieren noch Buchungen auf diesem Konto.")
 
             # --- KATEGORIEN ANLEGEN UND LÖSCHEN ---
         with c2:
