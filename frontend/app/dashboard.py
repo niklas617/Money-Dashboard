@@ -517,7 +517,6 @@ def render_konten(accounts: list, selected_acc_id):
                     # NEU: Sicheres Löschen
                     st.session_state.pop("edit_tx_id", None)
                     st.rerun()
-        st.divider()
 
 
         with st.expander("📋 Alle Buchungen anzeigen", expanded=True):
