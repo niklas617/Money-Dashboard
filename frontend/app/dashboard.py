@@ -578,62 +578,59 @@ def render_konten(accounts: list, selected_acc_id):
     # ------------------------------------------
     # TAB 3: EINSTELLUNGEN
     # ------------------------------------------
+    
     with tab_settings:
     # --- 1. REIHE: OBERER BEREICH (Neu anlegen) ---
-       top1, top2 = st.columns(2)
+        top1, top2 = st.columns(2)
     
-       with top1:
-        st.subheader("🏦 Neues Konto anlegen")
-        n_acc = st.text_input("Kontoname", key="n_acc")
-        curr = st.selectbox("Währung", ["EUR", "USD"], key="curr")
-        if st.button("Konto anlegen"):
-            api_request("POST", "accounts/", json={"name": n_acc, "currency": curr})
-            st.rerun()
-            
-        with top2:
-          st.subheader("🏷️ Neue Kategorie")
-        n_cat = st.text_input("Kategoriename", key="n_cat")
-        if st.button("Kategorie anlegen"):
-            api_request("POST", "categories/", json={"name": n_cat})
-            st.rerun()
-        if st.button("🔄 Standard-Kategorien laden"):
-            # Dein Code für die Standard-Kategorien hier...
-            st.rerun()
-
-    # --- 2. GEMEINSAMER TRENNER ---
-    # Dieser Divider geht jetzt über die VOLLE Breite und zieht alles gerade
-    st.divider()
-
-    # --- 3. REIHE: UNTERER BEREICH (Listen) ---
-    bot1, bot2 = st.columns(2)
-    
-    with bot1:
-        st.subheader("🗂️ Vorhandene Konten")
-        for a in accounts:
-            col_text, col_btn = st.columns([5, 1])
-            col_text.write(f"• {a['name']} ({a['currency']})")
-            if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
-                # Dein Löschen-Code hier...
+        with top1:
+            st.subheader("🏦 Neues Konto anlegen")
+            n_acc = st.text_input("Kontoname", key="n_acc")
+            curr = st.selectbox("Währung", ["EUR", "USD"], key="curr")
+            if st.button("Konto anlegen"):
+                api_request("POST", "accounts/", json={"name": n_acc, "currency": curr})
                 st.rerun()
                 
-    with bot2:
-        st.subheader("🗂️ Vorhandene Kategorien")
-        if categories:
-            for c in categories:
+        with top2:
+            st.subheader("🏷️ Neue Kategorie")
+            n_cat = st.text_input("Kategoriename", key="n_cat")
+            if st.button("Kategorie anlegen"):
+                api_request("POST", "categories/", json={"name": n_cat})
+                st.rerun()
+            if st.button("🔄 Standard-Kategorien laden"):
+                # Dein Code für die Standard-Kategorien hier...
+                st.rerun()
+
+            # --- 2. GEMEINSAMER TRENNER ---
+        st.divider()
+
+        # --- 3. REIHE: UNTERER BEREICH (Listen) ---
+        bot1, bot2 = st.columns(2)
+        
+        with bot1:
+            st.subheader("🗂️ Vorhandene Konten")
+            for a in accounts:
                 col_text, col_btn = st.columns([5, 1])
-                col_text.write(f"• {c['name']}")
-                if col_btn.button("🗑️", key=f"del_cat_{c['id']}"):
+                col_text.write(f"• {a['name']} ({a['currency']})")
+                if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
                     # Dein Löschen-Code hier...
                     st.rerun()
-        else:
-            st.info("Keine Kategorien vorhanden.")
+                    
+        with bot2:
+            st.subheader("🗂️ Vorhandene Kategorien")
+            if categories:
+                for c in categories:
+                    col_text, col_btn = st.columns([5, 1])
+                    col_text.write(f"• {c['name']}")
+                    if col_btn.button("🗑️", key=f"del_cat_{c['id']}"):
+                        # Dein Löschen-Code hier...
+                        st.rerun()
+            else:
+                st.info("Keine Kategorien vorhanden.")
 
-                # ------------------------------------------
-    # TAB 3: EINSTELLUNGEN
-    # ------------------------------------------
+        # --- Konten löschen --- 
     with tab_settings:
         c1, c2 = st.columns(2)
-        # ... [Dein bisheriger Code für Konten und Kategorien anlegen] ...
         
         # --- NEU: KONTO LÖSCHEN (GEFAHRENZONE) ---
         st.divider()
