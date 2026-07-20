@@ -463,6 +463,11 @@ def render_konten(accounts: list, selected_acc_id):
 
         flt = api_request("GET", "transactions/filter", params=params)
         filtered_txs = flt.json() if flt and flt.ok else []
+        if month:
+            filtered_txs = [
+                tx for tx in filtered_txs 
+                if datetime.fromisoformat(tx.get("date", "1900-01-01").replace("Z", "+00:00")).month == month
+        ]
 
 
         # --- Buchungen bearbeiten ---
