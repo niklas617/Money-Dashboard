@@ -12,6 +12,8 @@ import portfolio_tab
 from datetime import date
 from datetime import datetime
 
+st.set_page_config(layout="wide")
+
 # --- KONFIGURATION ---
 try:
     API_URL = st.secrets["API_URL"]
@@ -309,34 +311,34 @@ def render_konten(accounts: list, selected_acc_id):
             st.divider()
 
         # --- 7. KONTOVERLAUF (MONATLICH ÜBER DAS JAHR) ---
-            st.subheader("Entwicklung im Jahresverlauf")
+        st.subheader("Entwicklung im Jahresverlauf")
             
             # Wir nutzen das gesamte Jahr 'df' statt 'df_monat'
-            df_line = df.copy()
-            df_line["sort_date"] = pd.to_datetime(df_line["date"], format="%d.%m.%Y")
+        df_line = df.copy()
+        df_line["sort_date"] = pd.to_datetime(df_line["date"], format="%d.%m.%Y")
             
             # Gruppieren nach Monat statt nach vollem Datum
-            df_monthly = df_line.groupby(df_line["sort_date"].dt.to_period("M"))["amount"].sum().reset_index()
-            df_monthly["sort_date"] = df_monthly["sort_date"].dt.to_timestamp()
+        df_monthly = df_line.groupby(df_line["sort_date"].dt.to_period("M"))["amount"].sum().reset_index()
+        df_monthly["sort_date"] = df_monthly["sort_date"].dt.to_timestamp()
             
             # Den Kontostand über die Monate hinweg aufsummieren (Cumsum)
-            df_monthly["Kontostand"] = df_monthly["amount"].cumsum()
+        df_monthly["Kontostand"] = df_monthly["amount"].cumsum()
             
-            fig_line = px.line(
+        fig_line = px.line(
                 df_monthly,
                 x="sort_date",
                 y="Kontostand",
-                markers=True,
+                markers=False,
                 title="Kontostand-Entwicklung über die Monate",
                 labels={"sort_date": "Monat", "Kontostand": "Saldo (€)"},
             )
-            fig_line.update_traces(
+        fig_line.update_traces(
                 line=dict(color="#2ecc71", width=3, shape="spline"), # Das "Portfolio-Grün"
                 fill="tozeroy",                                      # Füllung nach unten
                 fillcolor="rgba(46, 204, 113, 0.2)",                 # Sanftes Grün transparent
             )
 
-            fig_line.update_layout(
+        fig_line.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 hovermode="x unified",
@@ -351,10 +353,10 @@ def render_konten(accounts: list, selected_acc_id):
                     showline=False,
                     color="#888"         # Dezentes Grau für die Zahlen
                 ),
-                margin=dict(l=0, r=0, t=80, b=0), # Chart nutzt den Platz voll aus
+                margin=dict(l=0, r=0, t=20, b=0), # Chart nutzt den Platz voll aus
             )
             
-            st.plotly_chart(fig_line, use_container_width=True)
+        st.plotly_chart(fig_line, use_container_width=True)
 
     # ------------------------------------------
     # TAB 2: BUCHUNGEN
