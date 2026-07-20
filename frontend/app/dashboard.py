@@ -477,7 +477,7 @@ def render_konten(accounts: list, selected_acc_id):
                     "Betrag", value=float(abs(tx_to_edit["amount"]))
                 )
                 new_note = st.text_input("Notiz", value=tx_to_edit["note"])
-                new_date = st.date_input("Datum", value=altes_datum)
+                new_date = st.date_input("Datum", value=altes_datum, format="DD.MM.YYYY")
                 
                 col_a, col_b = st.columns(2)
                 if col_a.form_submit_button("Speichern"):
