@@ -330,27 +330,30 @@ def render_konten(accounts: list, selected_acc_id):
                 title="Kontostand-Entwicklung über die Monate",
                 labels={"sort_date": "Monat", "Kontostand": "Saldo (€)"},
             )
-
-            # Das "Profi-Design" hinzufügen
             fig_line.update_traces(
-                mode="lines",
-                line=dict(color="#2ecc71", width=3, shape="spline"),
-                fill="tozeroy"
+                line=dict(color="#2ecc71", width=3, shape="spline"), # Das "Portfolio-Grün"
+                fill="tozeroy",                                      # Füllung nach unten
+                fillcolor="rgba(46, 204, 113, 0.2)",                 # Sanftes Grün transparent
             )
-            
+
             fig_line.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 hovermode="x unified",
-                xaxis=dict(showgrid=False),
+                xaxis=dict(
+                    showgrid=False, 
+                    showline=False, 
+                    tickformat="%m-%d", # Passendes Datumsformat
+                    color="#888"         # Dezentes Grau für die Schrift
+                ),
                 yaxis=dict(
-                showgrid=True, 
-                gridcolor="#424242",
-                range=[df_monthly["Kontostand"].min() * 1.2,
-                       df_monthly["Kontostand"].max() * 1.2]
-                 ) 
-) 
-         
+                    showgrid=False,      # Keine Gitterlinien wie im Bild
+                    showline=False,
+                    color="#888"         # Dezentes Grau für die Zahlen
+                ),
+                margin=dict(l=0, r=0, t=20, b=0), # Chart nutzt den Platz voll aus
+            )
+            
             st.plotly_chart(fig_line, use_container_width=True)
 
     # ------------------------------------------
