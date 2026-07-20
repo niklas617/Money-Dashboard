@@ -497,6 +497,7 @@ def render_konten(accounts: list, selected_acc_id):
                         st.success("Aktualisiert!")
                         # NEU: Sicheres Löschen (stürzt nicht ab, wenn die ID schon weg ist)
                         st.session_state.pop("edit_tx_id", None)
+                        st.cache_data.clear()
                         st.rerun()
                         
                 if col_b.form_submit_button("Abbrechen"):
@@ -504,6 +505,7 @@ def render_konten(accounts: list, selected_acc_id):
                     st.session_state.pop("edit_tx_id", None)
                     st.rerun()
         st.divider()
+
 
         with st.expander("📋 Alle Buchungen anzeigen", expanded=True):
            if filtered_txs:
@@ -551,6 +553,7 @@ def render_konten(accounts: list, selected_acc_id):
                 if c6.button("🗑️", key=f"del_{tx['id']}"):
                     res = api_request("DELETE", f"transactions/{tx['id']}")
                     if res and res.status_code == 200:
+                        st.cache_data.clear()
                         st.rerun()
            else:
             st.info("Keine Buchungen gefunden.")
