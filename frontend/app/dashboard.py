@@ -590,7 +590,7 @@ def render_konten(accounts: list, selected_acc_id):
             st.divider()
 
             # --- VORHANDENE KONTEN ANZEIGEN UND LÖSCHEN ---
-            st.subheader("🗂️ Vorhandene Konten")
+        st.subheader("🗂️ Vorhandene Konten")
         for a in accounts:
             # Wir bauen zwei kleine Spalten: Text links, Mülleimer rechts
             col_text, col_btn = st.columns([5, 1])
@@ -602,7 +602,7 @@ def render_konten(accounts: list, selected_acc_id):
                 if res and res.status_code == 200:
                     st.cache_data.clear()
                     st.rerun()
-                else:
+        else:
                     st.error("Fehler. Möglicherweise existieren noch Buchungen auf diesem Konto.")
 
             # --- KATEGORIEN ANLEGEN UND LÖSCHEN ---
