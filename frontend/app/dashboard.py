@@ -590,7 +590,7 @@ def render_konten(accounts: list, selected_acc_id):
             st.divider()
 
             # --- VORHANDENE KONTEN ANZEIGEN UND LÖSCHEN ---
-        st.subheader("🗂️ Vorhandene Konten")
+            st.subheader("🗂️ Vorhandene Konten")
         for a in accounts:
             # Wir bauen zwei kleine Spalten: Text links, Mülleimer rechts
             col_text, col_btn = st.columns([5, 1])
