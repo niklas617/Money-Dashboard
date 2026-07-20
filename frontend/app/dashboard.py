@@ -292,6 +292,8 @@ def render_konten(accounts: list, selected_acc_id):
                 st.plotly_chart(fig_inc, width="stretch")
             else:
                 st.info(f"Keine Einnahmen im {gewaehlter_monat_name}.")
+            st.divider()
+
 
         # --- 6. TORTENDIAGRAMME Ausgaben ---
 
