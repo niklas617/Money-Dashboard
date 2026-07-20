@@ -597,7 +597,6 @@ def render_konten(accounts: list, selected_acc_id):
             if st.button("Kategorie anlegen"):
                 api_request("POST", "categories/", json={"name": n_cat})
                 st.rerun()
-            st.divider()
             if st.button("🔄 Standard-Kategorien laden"):
                 for d in [
                     "Lebensmittel",
@@ -670,7 +669,7 @@ def render_konten(accounts: list, selected_acc_id):
                         st.error("Fehler beim Speichern des Passworts.")
 
         # --- KONTO LÖSCHEN ---
-        with st.expander("Konto endgültig löschen"):
+        with st.expander("Konto löschen"):
             st.warning(
                 "Achtung: Diese Aktion kann nicht rückgängig gemacht werden. "
                 "Alle deine Konten, Kategorien, Buchungen, Trades und dein Profil "
