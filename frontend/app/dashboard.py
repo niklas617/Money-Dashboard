@@ -444,17 +444,18 @@ def render_konten(accounts: list, selected_acc_id):
         st.subheader("📅 Buchungen durchsuchen")
         col_y, col_m = st.columns(2)
         year = col_y.number_input("Jahr", value=current_year, step=1)
-        month = col_m.selectbox(
-                "Monat", 
-                options=[None] + list(range(1, 13)),
-                format_func=lambda x: monats_namen[x]
-                )
         monats_namen = {
                 None: "Alle Monate",
                 1: "Januar", 2: "Februar", 3: "März", 4: "April",
                 5: "Mai", 6: "Juni", 7: "Juli", 8: "August",
                 9: "September", 10: "Oktober", 11: "November", 12: "Dezember"
                 }
+        month = col_m.selectbox(
+                "Monat", 
+                options=[None] + list(range(1, 13)),
+                format_func=lambda x: monats_namen[x]
+                )
+        
 
         params = {"account_id": selected_acc_id, "year": int(year)}
         if month:
