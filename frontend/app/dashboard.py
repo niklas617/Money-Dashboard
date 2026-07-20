@@ -623,9 +623,9 @@ def render_konten(accounts: list, selected_acc_id):
                 ]:
                     api_request("POST", "categories/", json={"name": d})
                 st.rerun()
-                st.divider()
+            st.divider()
 
-                st.divider()
+
             st.subheader("🗂️ Vorhandene Kategorien")
         
         # Die Liste 'categories' haben wir ganz oben in render_konten schon geladen
