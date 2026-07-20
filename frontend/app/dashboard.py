@@ -505,8 +505,8 @@ def render_konten(accounts: list, selected_acc_id):
                     st.rerun()
         st.divider()
 
-    with st.expander("📋 Alle Buchungen anzeigen", expanded=True):
-        if filtered_txs:
+        with st.expander("📋 Alle Buchungen anzeigen", expanded=True):
+           if filtered_txs:
             filtered_txs.sort(key=lambda x: x.get("id", 0), reverse=True)
             st.write("---")
             h1, h2, h3, h4, h5, h6 = st.columns([2, 2, 3, 2, 1, 1])
@@ -549,7 +549,7 @@ def render_konten(accounts: list, selected_acc_id):
                     res = api_request("DELETE", f"transactions/{tx['id']}")
                     if res and res.status_code == 200:
                         st.rerun()
-        else:
+           else:
             st.info("Keine Buchungen gefunden.")
 
     # ------------------------------------------
