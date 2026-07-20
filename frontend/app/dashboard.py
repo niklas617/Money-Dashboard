@@ -597,7 +597,7 @@ def render_konten(accounts: list, selected_acc_id):
             col_text.write(f"• {a['name']} ({a['currency']})")
             
             # Button mit einzigartigem Key (ID des Kontos)
-            if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
+        if col_btn.button("🗑️", key=f"del_acc_{a['id']}"):
                 res = api_request("DELETE", f"accounts/{a['id']}")
                 if res and res.status_code == 200:
                     st.cache_data.clear()
