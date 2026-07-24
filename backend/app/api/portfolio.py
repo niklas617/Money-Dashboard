@@ -865,11 +865,26 @@ def get_net_worth_history(
         price_history = fetch_price_history(symbols_by_type, start_date)
 
         today = datetime.utcnow().date()
+        # FIX: Wir speichern hier den letzten bekannten Preis für jedes Asset zwischen
+        last_known_prices = {sym: 0.0 for sym in symbols_by_type.keys()}
+
         for current_dt in pd.date_range(start=_to_date(start_date), end=today, freq="D"):
             current_d = current_dt.date()
             date_str = current_d.strftime("%Y-%m-%d")
             holdings = compute_holdings_at(trades, up_to_date=current_d)
-            val = sum(qty * price_history.get(sym, {}).get(date_str, 0.0) for sym, qty in holdings.items())
+            
+            val = 0.0
+            for sym, qty in holdings.items():
+                # Prüfen, ob es für diesen spezifischen Tag einen Kurs gibt
+                today_price = price_history.get(sym, {}).get(date_str)
+                
+                # Wenn wir einen echten Kurs haben, aktualisieren wir unseren "Speicher"
+                if today_price is not None and today_price > 0:
+                    last_known_prices[sym] = today_price
+                    
+                # Wir rechnen immer mit dem letzten bekannten Kurs (Forward-Fill)
+                val += qty * last_known_prices[sym]
+                
             portfolio_history[date_str] = val
 
     # 2. Fiat Historie berechnen
@@ -886,7 +901,6 @@ def get_net_worth_history(
             current_d = current_dt.date()
             date_str = current_d.strftime("%Y-%m-%d")
 
-            # Alle Buchungen bis zu diesem Tag aufsummieren
             while tx_idx < len(sorted_fiat) and _to_date(sorted_fiat[tx_idx].date) <= current_d:
                 fiat_balance += sorted_fiat[tx_idx].amount
                 tx_idx += 1
