@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from backend.app.api.auth import get_current_user
 from backend.app.db.database import engine
 from backend.app.db.models import Trade, TradeCreate, User
+from backend.app.db.models import Trade, TradeCreate, User, Transaction
 
 router = APIRouter()
 
@@ -842,5 +843,73 @@ def get_portfolio_history(
         )
         if portfolio_value > 0:
             result.append({"date": date_str, "value": round(portfolio_value, 2)})
+
+    return result
+
+
+@router.get("/net-worth")
+def get_net_worth_history(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    import pandas as pd
+    from datetime import datetime
+
+    # 1. Portfolio Historie berechnen
+    trades = session.exec(select(Trade).where(Trade.user_id == current_user.id)).all()
+    portfolio_history = {}
+    if trades:
+        sorted_trades = sorted(trades, key=lambda t: t.date)
+        start_date = sorted_trades[0].date
+        symbols_by_type = {t.symbol: t.asset_type for t in trades}
+        price_history = fetch_price_history(symbols_by_type, start_date)
+
+        today = datetime.utcnow().date()
+        for current_dt in pd.date_range(start=_to_date(start_date), end=today, freq="D"):
+            current_d = current_dt.date()
+            date_str = current_d.strftime("%Y-%m-%d")
+            holdings = compute_holdings_at(trades, up_to_date=current_d)
+            val = sum(qty * price_history.get(sym, {}).get(date_str, 0.0) for sym, qty in holdings.items())
+            portfolio_history[date_str] = val
+
+    # 2. Fiat Historie berechnen
+    fiat_tx = session.exec(select(Transaction).where(Transaction.user_id == current_user.id)).all()
+    fiat_history = {}
+    fiat_balance = 0.0
+    if fiat_tx:
+        sorted_fiat = sorted(fiat_tx, key=lambda t: t.date)
+        fiat_start = _to_date(sorted_fiat[0].date)
+        fiat_today = datetime.utcnow().date()
+
+        tx_idx = 0
+        for current_dt in pd.date_range(start=fiat_start, end=fiat_today, freq="D"):
+            current_d = current_dt.date()
+            date_str = current_d.strftime("%Y-%m-%d")
+
+            # Alle Buchungen bis zu diesem Tag aufsummieren
+            while tx_idx < len(sorted_fiat) and _to_date(sorted_fiat[tx_idx].date) <= current_d:
+                fiat_balance += sorted_fiat[tx_idx].amount
+                tx_idx += 1
+
+            fiat_history[date_str] = fiat_balance
+
+    # 3. Beide Zeitreihen zusammenführen
+    all_dates = sorted(list(set(list(portfolio_history.keys()) + list(fiat_history.keys()))))
+    result = []
+    last_port = 0.0
+    last_fiat = 0.0
+
+    for d in all_dates:
+        if d in portfolio_history:
+            last_port = portfolio_history[d]
+        if d in fiat_history:
+            last_fiat = fiat_history[d]
+
+        result.append({
+            "date": d,
+            "portfolio_value": round(last_port, 2),
+            "fiat_value": round(last_fiat, 2),
+            "total_value": round(last_port + last_fiat, 2)
+        })
 
     return result
