@@ -180,7 +180,7 @@ async def scan_bank_statement(
         """
 
         # 5. Anfrage an das Gemini 1.5 Flash Modell senden
-        model = genai.GenerativeModel('gemini-flash-latest')
+        model = genai.GenerativeModel('gemini-3.5-flash-lite')
         response = model.generate_content([prompt, image])
 
         # 6. Antwort bereinigen
