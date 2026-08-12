@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-text-primary font-sans antialiased;
+    font-feature-settings: 'ss01';
+    overscroll-behavior-y: none;
+  }
+
+  /* Tabellarische Ziffern fuer alle Geldbetraege */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* Dezenter Scrollbar im Zentara-Look */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #232a2e;
+    border-radius: 999px;
+    border: 2px solid #0a0c0d;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #333c41;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+
+  /* Autofill im dunklen Look halten */
+  input:-webkit-autofill,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f1f5f3;
+    -webkit-box-shadow: 0 0 0px 1000px #1b2024 inset;
+    caret-color: #f1f5f3;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-md border border-border bg-surface shadow-card;
+  }
+
+  .overline {
+    @apply text-[11.5px] font-semibold uppercase tracking-[0.14em] text-text-secondary;
+  }
+
+  .input {
+    @apply w-full rounded-sm border border-border bg-surface-elevated px-4 py-3 text-[15px] text-text-primary
+      placeholder:text-text-muted outline-none transition-all
+      focus:border-mint focus:ring-2 focus:ring-mint/25;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm bg-mint px-5 py-3 text-[15px] font-bold
+      text-on-mint transition-all hover:bg-mint-bright active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm border border-border-strong px-5 py-3
+      text-[15px] font-semibold text-text-primary transition-all hover:bg-surface-high active:scale-[0.98];
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-pill border border-border bg-surface-high px-3 py-1.5
+      text-[13px] font-semibold text-text-secondary;
+  }
+}
+
+/* Loading-Shimmer fuer Skeletons */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+  animation: shimmer 1.6s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import List
 from backend.app.db.database import engine
-from backend.app.db.models import Category, CategoryCreate, User
+from backend.app.db.models import Category, CategoryCreate, User, Transaction
 from backend.app.api.auth import get_current_user
 
 router = APIRouter()
@@ -24,3 +24,30 @@ def create_category(category: CategoryCreate, session: Session = Depends(get_ses
 def read_categories(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     statement = select(Category).where(Category.user_id == current_user.id)
     return session.exec(statement).all()
+
+
+@router.delete("/{category_id}")
+def delete_category(
+    category_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    category = session.exec(
+        select(Category).where(Category.id == category_id, Category.user_id == current_user.id)
+    ).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Kategorie nicht gefunden")
+
+    # Buchungen dieser Kategorie zuerst entfernen (SQLite-kompatibel, s. accounts.py)
+    related_tx = session.exec(
+        select(Transaction).where(
+            Transaction.category_id == category_id,
+            Transaction.user_id == current_user.id,
+        )
+    ).all()
+    for tx in related_tx:
+        session.delete(tx)
+
+    session.delete(category)
+    session.commit()
+    return {"status": "ok", "message": "Kategorie und zugehörige Buchungen gelöscht"}

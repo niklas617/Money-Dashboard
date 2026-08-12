@@ -11,10 +11,36 @@ from pydantic import BaseModel
 
 from backend.app.api.auth import get_current_user
 from backend.app.db.database import engine
-from backend.app.db.models import Trade, TradeCreate, User
-from backend.app.db.models import Trade, TradeCreate, User, Transaction
+from backend.app.db.models import Trade, TradeCreate, User, Transaction, Account
 
 router = APIRouter()
+
+# ---------- Erlaubte Werte fuer Trades ----------
+VALID_TRADE_TYPES = {"BUY", "SELL"}
+VALID_ASSET_TYPES = {"stock", "crypto"}
+
+
+def _validate_trade_fields(
+    trade_type: Optional[str] = None,
+    asset_type: Optional[str] = None,
+    quantity: Optional[float] = None,
+    price_per_unit: Optional[float] = None,
+) -> None:
+    """Prueft die zentralen Trade-Felder und wirft bei Unsinn einen 422-Fehler.
+
+    So landen keine kaputten Datensaetze (z. B. negative Mengen oder ein
+    Tippfehler im trade_type) in der DB, die spaeter die P&L-Berechnung
+    verfaelschen wuerden. Alle Argumente sind optional, damit die Funktion
+    sowohl beim Anlegen (alle Felder) als auch beim Teil-Update genutzt werden kann.
+    """
+    if trade_type is not None and trade_type not in VALID_TRADE_TYPES:
+        raise HTTPException(status_code=422, detail="trade_type muss 'BUY' oder 'SELL' sein.")
+    if asset_type is not None and asset_type not in VALID_ASSET_TYPES:
+        raise HTTPException(status_code=422, detail="asset_type muss 'stock' oder 'crypto' sein.")
+    if quantity is not None and quantity <= 0:
+        raise HTTPException(status_code=422, detail="quantity muss groesser als 0 sein.")
+    if price_per_unit is not None and price_per_unit < 0:
+        raise HTTPException(status_code=422, detail="price_per_unit darf nicht negativ sein.")
 
 # ---------- CoinGecko: Symbol -> Coin-ID ----------
 CRYPTO_ID_MAP = {
@@ -339,7 +365,25 @@ def _stock_price_eur(symbol: str, eurusd: float) -> float:
         return 0.0
 
 
-def fetch_live_prices(symbols_by_type: Dict[str, str]) -> Dict[str, float]:
+def _resolve_coin_id(symbol: str, coin_ids: Optional[Dict[str, str]] = None) -> str:
+    """Ermittelt die CoinGecko-Coin-ID fuer ein Krypto-Symbol.
+
+    Reihenfolge: (1) am Trade gespeicherte coin_id (aus der Suche/Lookup),
+    (2) hartkodierte CRYPTO_ID_MAP als Fallback fuer Alt-Trades,
+    (3) letzter Notnagel: symbol.lower().
+    Damit funktioniert jeder Coin, den CoinGecko kennt – unabhaengig von der Map.
+    """
+    if coin_ids:
+        stored = coin_ids.get(symbol)
+        if stored:
+            return stored
+    return CRYPTO_ID_MAP.get(symbol.upper(), symbol.lower())
+
+
+def fetch_live_prices(
+    symbols_by_type: Dict[str, str],
+    coin_ids: Optional[Dict[str, str]] = None,
+) -> Dict[str, float]:
     """Gibt aktuelle Kurse aller Assets in EUR zurueck."""
     prices: Dict[str, float] = {}
 
@@ -354,7 +398,7 @@ def fetch_live_prices(symbols_by_type: Dict[str, str]) -> Dict[str, float]:
 
     # ---- Krypto: CoinGecko liefert direkt EUR ----
     if crypto_syms:
-        ids = [CRYPTO_ID_MAP.get(s.upper(), s.lower()) for s in crypto_syms]
+        ids = [_resolve_coin_id(s, coin_ids) for s in crypto_syms]
         try:
             resp = http_requests.get(
                 "https://api.coingecko.com/api/v3/simple/price",
@@ -386,7 +430,9 @@ def _fetch_eurusd_history(start_str: str, end_str: str) -> Dict[str, float]:
 
 
 def fetch_price_history(
-    symbols_by_type: Dict[str, str], start_date: datetime
+    symbols_by_type: Dict[str, str],
+    start_date: datetime,
+    coin_ids: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
     Historische Tagesschlusskurse aller Assets in EUR.
@@ -425,7 +471,7 @@ def fetch_price_history(
                 pass
 
         else:  # crypto
-            coin_id = CRYPTO_ID_MAP.get(sym.upper(), sym.lower())
+            coin_id = _resolve_coin_id(sym, coin_ids)
             try:
                 resp = http_requests.get(
                     f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart",
@@ -678,6 +724,7 @@ def lookup_asset(
                 "native_currency": native_cur,
                 "logo_url":        logo_url,
                 "asset_type":      "stock",
+                "coin_id":         None,
             }
         except HTTPException:
             raise
@@ -714,6 +761,7 @@ def lookup_asset(
                 "native_currency": "USD",
                 "logo_url":        data.get("image", {}).get("small", ""),
                 "asset_type":      "crypto",
+                "coin_id":         cg_id,
             }
         except HTTPException:
             raise
@@ -729,6 +777,19 @@ def create_trade(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    # Normalisieren + validieren, bevor der Trade gespeichert wird
+    trade_in.trade_type = (trade_in.trade_type or "").upper().strip()
+    trade_in.asset_type = (trade_in.asset_type or "").lower().strip()
+    trade_in.symbol = (trade_in.symbol or "").upper().strip()
+    # coin_id (CoinGecko) klein + getrimmt speichern; fuer Aktien bleibt sie leer/None
+    trade_in.coin_id = ((trade_in.coin_id or "").strip().lower()) or None
+    _validate_trade_fields(
+        trade_type=trade_in.trade_type,
+        asset_type=trade_in.asset_type,
+        quantity=trade_in.quantity,
+        price_per_unit=trade_in.price_per_unit,
+    )
+
     trade = Trade(**trade_in.model_dump(), user_id=current_user.id)
     session.add(trade)
     session.commit()
@@ -761,9 +822,13 @@ def delete_trade(
     return {"status": "ok"}
 
 # --- Update Schema für Trades ---
+# Alle Felder optional -> das Frontend kann ein Teil-Update schicken
+# (z. B. nur Menge + Preis) oder auch Datum / Trade-Typ mit-anpassen.
 class TradeUpdate(BaseModel):
-    quantity: float
-    price_per_unit: float
+    quantity: Optional[float] = None
+    price_per_unit: Optional[float] = None
+    trade_type: Optional[str] = None
+    date: Optional[datetime] = None
 
 @router.put("/trades/{trade_id}", response_model=Trade)
 def update_trade(
@@ -780,11 +845,26 @@ def update_trade(
     if not trade:
         raise HTTPException(status_code=404, detail="Trade nicht gefunden")
 
-    # 2. Werte aktualisieren
-    trade.quantity = trade_in.quantity
-    trade.price_per_unit = trade_in.price_per_unit
+    # 2. Eingaben normalisieren + validieren (nur die gesetzten Felder)
+    if trade_in.trade_type is not None:
+        trade_in.trade_type = trade_in.trade_type.upper().strip()
+    _validate_trade_fields(
+        trade_type=trade_in.trade_type,
+        quantity=trade_in.quantity,
+        price_per_unit=trade_in.price_per_unit,
+    )
 
-    # 3. Speichern
+    # 3. Nur die tatsaechlich uebergebenen Felder aktualisieren
+    if trade_in.quantity is not None:
+        trade.quantity = trade_in.quantity
+    if trade_in.price_per_unit is not None:
+        trade.price_per_unit = trade_in.price_per_unit
+    if trade_in.trade_type is not None:
+        trade.trade_type = trade_in.trade_type
+    if trade_in.date is not None:
+        trade.date = trade_in.date
+
+    # 4. Speichern
     session.add(trade)
     session.commit()
     session.refresh(trade)
@@ -810,7 +890,8 @@ def get_portfolio_summary(
         }
 
     symbols_by_type = {t.symbol: t.asset_type for t in trades}
-    return compute_portfolio_summary(trades, fetch_live_prices(symbols_by_type))
+    coin_ids = {t.symbol: t.coin_id for t in trades if t.coin_id}
+    return compute_portfolio_summary(trades, fetch_live_prices(symbols_by_type, coin_ids))
 
 
 @router.get("/history")
@@ -827,7 +908,8 @@ def get_portfolio_history(
     sorted_trades  = sorted(trades, key=lambda t: t.date)
     start_date     = sorted_trades[0].date
     symbols_by_type = {t.symbol: t.asset_type for t in trades}
-    price_history  = fetch_price_history(symbols_by_type, start_date)
+    coin_ids       = {t.symbol: t.coin_id for t in trades if t.coin_id}
+    price_history  = fetch_price_history(symbols_by_type, start_date, coin_ids)
 
     today  = datetime.utcnow().date()
     result = []
@@ -862,7 +944,8 @@ def get_net_worth_history(
         sorted_trades = sorted(trades, key=lambda t: t.date)
         start_date = sorted_trades[0].date
         symbols_by_type = {t.symbol: t.asset_type for t in trades}
-        price_history = fetch_price_history(symbols_by_type, start_date)
+        coin_ids = {t.symbol: t.coin_id for t in trades if t.coin_id}
+        price_history = fetch_price_history(symbols_by_type, start_date, coin_ids)
 
         today = datetime.utcnow().date()
         # FIX: Wir speichern hier den letzten bekannten Preis für jedes Asset zwischen
@@ -888,9 +971,14 @@ def get_net_worth_history(
             portfolio_history[date_str] = val
 
     # 2. Fiat Historie berechnen
+    # Anfangssaldo aller Konten = Basis, damit der Kontostand (opening + Buchungen)
+    # exakt mit der Konten-Ansicht in Web-App und Flutter-App uebereinstimmt.
+    accounts = session.exec(select(Account).where(Account.user_id == current_user.id)).all()
+    total_opening = sum((a.opening_balance or 0.0) for a in accounts)
+
     fiat_tx = session.exec(select(Transaction).where(Transaction.user_id == current_user.id)).all()
     fiat_history = {}
-    fiat_balance = 0.0
+    fiat_balance = total_opening
     if fiat_tx:
         sorted_fiat = sorted(fiat_tx, key=lambda t: t.date)
         fiat_start = _to_date(sorted_fiat[0].date)
@@ -911,7 +999,7 @@ def get_net_worth_history(
     all_dates = sorted(list(set(list(portfolio_history.keys()) + list(fiat_history.keys()))))
     result = []
     last_port = 0.0
-    last_fiat = 0.0
+    last_fiat = total_opening  # ohne Buchungen bleibt der Anfangssaldo stehen
 
     for d in all_dates:
         if d in portfolio_history:

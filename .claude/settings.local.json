@@ -7,7 +7,9 @@
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\ns051\\\\Desktop\\\\homepage - Kopie\" -Recurse -Depth 3 | Where-Object { $_.FullName -notmatch \"node_modules|\\\\.next|\\\\.git\" } | Select-Object FullName)",
       "PowerShell(cd \"C:\\\\Users\\\\ns051\\\\Desktop\\\\homepage - Kopie\" && npm run dev 2>&1 &)",
       "mcp__Claude_in_Chrome__tabs_context_mcp",
-      "PowerShell(Start-Process powershell -ArgumentList '-NoExit', '-Command', 'cd \"C:\\\\Users\\\\ns051\\\\Desktop\\\\homepage - Kopie\"; npm run dev' -WindowStyle Normal)"
+      "PowerShell(Start-Process powershell -ArgumentList '-NoExit', '-Command', 'cd \"C:\\\\Users\\\\ns051\\\\Desktop\\\\homepage - Kopie\"; npm run dev' -WindowStyle Normal)",
+      "Bash(npm --version)",
+      "Bash(python -m py_compile backend/app/main.py backend/app/db/database.py backend/app/api/portfolio.py backend/app/api/accounts.py backend/app/api/categories.py)"
     ]
   }
 }

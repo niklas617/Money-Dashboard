@@ -14,6 +14,10 @@ class Account(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     currency: str
+    # Anfangssaldo (Geld auf dem Konto, bevor Buchungen erfasst wurden).
+    # Damit stimmt der echte Kontostand = opening_balance + Summe aller Buchungen –
+    # konsistent in Web-App, Flutter-App UND der Netto-Vermögens-Übersicht.
+    opening_balance: float = Field(default=0.0)
     # NEU: ondelete="CASCADE" hinzugefügt
     user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
 
@@ -44,6 +48,7 @@ class UserCreate(SQLModel):
 class AccountCreate(SQLModel):
     name: str
     currency: str
+    opening_balance: float = 0.0
 
 class CategoryCreate(SQLModel):
     name: str
@@ -66,6 +71,9 @@ class Trade(SQLModel, table=True):
     trade_type: str   # "BUY"  | "SELL"
     quantity: float
     price_per_unit: float
+    # CoinGecko-Coin-ID (z. B. "bitcoin"). Nur fuer Krypto relevant – so wird der
+    # Kurs unabhaengig von der hartkodierten Symbol-Map geladen (analog zum Aktien-Symbol).
+    coin_id: Optional[str] = Field(default=None)
     date: datetime = Field(default_factory=datetime.utcnow)
     # NEU: ondelete="CASCADE" hinzugefügt
     user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
@@ -78,5 +86,38 @@ class TradeCreate(SQLModel):
     trade_type: str
     quantity: float
     price_per_unit: float
+    coin_id: Optional[str] = None
     date: datetime = Field(default_factory=datetime.utcnow)
+
+
+# --- BUDGETS (monatliches Limit pro Kategorie) ---
+
+class Budget(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    category_id: int = Field(foreign_key="category.id", ondelete="CASCADE")
+    monthly_limit: float
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
+
+
+class BudgetSet(SQLModel):
+    monthly_limit: float
+
+
+# --- KURS-ALERTS (serverseitige Liste; Feldnamen passen zur Flutter-App) ---
+
+class PriceAlert(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    symbol: str
+    asset_type: str   # "stock" | "crypto"
+    target_price: float
+    above: bool       # True = ueber Ziel benachrichtigen, False = unter
+    enabled: bool = True
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
+
+
+class PriceAlertCreate(SQLModel):
+    symbol: str
+    asset_type: str = "crypto"
+    target_price: float
+    above: bool = True
 

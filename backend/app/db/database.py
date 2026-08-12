@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlmodel import SQLModel
 from backend.app.core.settings import settings
 
@@ -30,7 +30,10 @@ try:
         raise ValueError("DATABASE_URL ist leer!")
 
     # Standard-Argumente
-    engine_args = {"echo": True}
+    # echo=False: SQL-Logging aus. Bei True wird jede einzelne Query geloggt –
+    # auf Render/Neon extrem laut und spuerbar langsamer. Zum Debuggen per
+    # Umgebungsvariable SQL_ECHO=true kurzzeitig aktivierbar.
+    engine_args = {"echo": os.getenv("SQL_ECHO", "false").lower() == "true"}
 
     # Spezielle Einstellungen für PostgreSQL/Neon
     if "postgresql" in DATABASE_URL:
@@ -51,5 +54,33 @@ except Exception as e:
     print(f"❌ FEHLER: Konnte Datenbank nicht verbinden.")
     raise e
 
+def _run_light_migrations() -> None:
+    """Minimal-Migrationen fuer additive Spalten (SQLModel.create_all aendert
+    bestehende Tabellen nicht). Idempotent: prueft vorhandene Spalten und legt
+    fehlende an. Funktioniert auf SQLite und Postgres.
+    """
+    insp = inspect(engine)
+    tables = insp.get_table_names()
+
+    # trade.coin_id (CoinGecko-ID fuer Krypto) nachruesten
+    if "trade" in tables:
+        cols = {c["name"] for c in insp.get_columns("trade")}
+        if "coin_id" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE trade ADD COLUMN coin_id VARCHAR"))
+
+    # account.opening_balance (Anfangssaldo) nachruesten
+    if "account" in tables:
+        cols = {c["name"] for c in insp.get_columns("account")}
+        if "opening_balance" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE account ADD COLUMN opening_balance FLOAT DEFAULT 0"))
+
+
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
+    try:
+        _run_light_migrations()
+    except Exception as e:
+        # Migration darf den Start nie verhindern – nur loggen.
+        print(f"⚠️  Light-Migration übersprungen: {e}")

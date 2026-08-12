@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from jose import JWTError, jwt
 from pydantic import BaseModel
+import os
 import requests as http_requests
 
 # Warnungen für das Ignorieren von SSL unterdrücken
@@ -31,65 +32,101 @@ class UserUpdate(BaseModel):
 class PasswordUpdate(BaseModel):
     new_password: str
 
+# Wohin der klassische Redirect-Flow (Streamlit) nach erfolgreichem Login leitet.
+# Per Env ueberschreibbar, damit nichts hartkodiert bleibt.
+GOOGLE_WEB_REDIRECT = os.getenv(
+    "GOOGLE_WEB_REDIRECT",
+    "https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app",
+)
+
+
+def _verify_google_token(token: str) -> str:
+    """Verifiziert ein Google-id_token direkt bei Google und gibt die E-Mail zurueck.
+
+    Wir fragen Google's tokeninfo-Endpoint direkt (umgeht die fehleranfaellige
+    Bibliothek) und pruefen, dass der Token wirklich fuer unsere Client-ID ausgestellt wurde.
+    """
+    if not token:
+        raise HTTPException(status_code=400, detail="Kein Token empfangen")
+
+    verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={token}"
+    response = http_requests.get(verify_url, verify=False)
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Ungültiger Google Token")
+
+    id_info = response.json()
+    if id_info.get("aud") != GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=400, detail="Client-ID stimmt nicht überein")
+
+    email = id_info.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Keine Email im Google-Token gefunden")
+    return email
+
+
+def _get_or_create_google_user(email: str, session: Session) -> User:
+    """Findet den Google-Nutzer (per E-Mail oder altem Benutzernamen) oder legt ihn an."""
+    statement = select(User).where((User.email == email) | (User.username == email))
+    db_user = session.exec(statement).first()
+
+    if not db_user:
+        db_user = User(username=email, email=email, password_hash="GOOGLE_AUTH_USER_NO_PASSWORD")
+        session.add(db_user)
+        session.commit()
+        session.refresh(db_user)
+
+        # Standard-Kategorien anlegen
+        for cat_name in ["Lebensmittel", "Miete/Wohnen", "Gehalt", "Freizeit", "Transport", "Sparen"]:
+            session.add(Category(name=cat_name, user_id=db_user.id))
+        session.commit()
+    elif not db_user.email:
+        # Alt-User ohne E-Mail-Spalte: still im Hintergrund nachtragen
+        db_user.email = email
+        session.add(db_user)
+        session.commit()
+
+    return db_user
+
+
 @router.post("/google/web")
 async def google_auth_web(request: Request, session: Session = Depends(get_session)):
+    """Klassischer Flow (Flutter/Streamlit): verifiziert Token und leitet mit ?token=… weiter."""
     try:
-        # Formular auslesen, das Google uns schickt
         form_data = await request.form()
         token = form_data.get("id_token") or form_data.get("credential")
-        
-        if not token:
-            raise HTTPException(status_code=400, detail="Kein Token empfangen")
 
-        # --- DIE NUKLEAR-OPTION: Direkter API-Call zu Google ---
-        # Wir umgehen die fehlerhafte Bibliothek komplett und fragen Google direkt.
-        verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={token}"
-        response = http_requests.get(verify_url, verify=False)
-        
-        if response.status_code != 200:
-            raise ValueError("Ungültiger Google Token")
-            
-        id_info = response.json()
-        
-        # Sicherheits-Check: Ist der Token wirklich für unser Dashboard?
-        if id_info.get("aud") != GOOGLE_CLIENT_ID:
-            raise ValueError("Client-ID stimmt nicht überein")
-            
-        email = id_info.get("email")
-        if not email:
-            raise ValueError("Keine Email im Google-Token gefunden")
-
-        # 2. Nutzer in DB suchen oder anlegen
-        # Wir suchen nach der E-Mail ODER dem alten Benutzernamen (für Accounts, die vor diesem Update erstellt wurden)
-        statement = select(User).where((User.email == email) | (User.username == email))
-        db_user = session.exec(statement).first()
-
-        if not db_user:
-            # NEUER USER: Speichert die E-Mail ab jetzt fest in der neuen Spalte
-            db_user = User(username=email, email=email, password_hash="GOOGLE_AUTH_USER_NO_PASSWORD")
-            session.add(db_user)
-            session.commit()
-            session.refresh(db_user)
-            
-            # Standard-Kategorien anlegen
-            for cat_name in ["Lebensmittel", "Miete/Wohnen", "Gehalt", "Freizeit", "Transport", "Sparen"]:
-                session.add(Category(name=cat_name, user_id=db_user.id))
-            session.commit()
-        else:
-            # MIGRATION: Wenn es ein alter Google-User ist, bei dem die E-Mail-Spalte noch leer ist, füllen wir sie jetzt leise im Hintergrund!
-            if not db_user.email:
-                db_user.email = email
-                session.add(db_user)
-                session.commit()
-
-        # 3. Deinen JWT-Token erstellen
+        email = _verify_google_token(token)
+        db_user = _get_or_create_google_user(email, session)
         access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
-        
-        # 4. Zurück zum Dashboard leiten (Deine echte Streamlit-URL)
-        return RedirectResponse(url=f"https://money-dashboard-qem5mns8rbvthdkgffx5uq.streamlit.app?token={access_token}&user={db_user.username}", status_code=303)
 
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        return RedirectResponse(
+            url=f"{GOOGLE_WEB_REDIRECT}?token={access_token}&user={db_user.username}",
+            status_code=303,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backend-Fehler: {str(e)}")
+
+
+@router.post("/google/token")
+def google_auth_token(payload: GoogleAuthRequest, session: Session = Depends(get_session)):
+    """SPA-Flow (React-Web-Frontend): verifiziert das id_token und gibt den JWT als JSON zurueck.
+
+    Das Frontend holt das Google-id_token via Google Identity Services im Browser
+    und schickt es hierher – zurueck kommt der eigene Access-Token (kein Redirect).
+    """
+    try:
+        email = _verify_google_token(payload.id_token)
+        db_user = _get_or_create_google_user(email, session)
+        access_token = create_access_token(data={"sub": db_user.username, "user_id": db_user.id})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "username": db_user.username,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Backend-Fehler: {str(e)}")
 
