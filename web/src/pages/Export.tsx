@@ -29,7 +29,12 @@ export function Export() {
         const txLists = await Promise.all(
           accounts.map((a) => api.getTransactions(a.id, year).catch(() => [])),
         )
-        const allTx = txLists.flat().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        // Der /filter-Endpoint ignoriert das Jahr und liefert ALLE Buchungen –
+        // fuer den Jahres-Export daher clientseitig aufs laufende Jahr filtern.
+        const allTx = txLists
+          .flat()
+          .filter((t) => new Date(t.date).getFullYear() === year)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         setTrades(tr)
         setTxs(allTx)
         setCatNames(new Map(cats.map((c) => [c.id, c.name])))

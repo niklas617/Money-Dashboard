@@ -66,14 +66,15 @@ export function Accounts() {
     }
   }
 
-  // Laufendes Jahr fuer Liste/Analytics + Summe ALLER Buchungen (10 Jahre parallel)
+  // Der /filter-Endpoint liefert ALLE Buchungen des Kontos (der year-Parameter wird
+  // serverseitig ignoriert – die Flutter-App verlaesst sich ebenso darauf). Darum genau
+  // EIN Request: Saldo = Summe ALLER Buchungen, Liste/Analytics = nur laufendes Jahr.
   const loadTx = async (accId: number) => {
     setLoadingTx(true)
     try {
-      const years = Array.from({ length: 10 }, (_, i) => year - i)
-      const all = await Promise.all(years.map((y) => api.getTransactions(accId, y).catch(() => [])))
-      setTxs(all[0])
-      setAllTimeSum(all.flat().reduce((s, t) => s + t.amount, 0))
+      const allTx = await api.getTransactions(accId, year)
+      setTxs(allTx.filter((t) => new Date(t.date).getFullYear() === year))
+      setAllTimeSum(allTx.reduce((s, t) => s + t.amount, 0))
     } catch {
       setTxs([])
       setAllTimeSum(0)
