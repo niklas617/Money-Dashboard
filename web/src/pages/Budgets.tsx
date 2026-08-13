@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast'
 import { Card, EmptyState, FadeIn, Overline, SectionHeader, Skeleton, Spinner } from '../components/ui'
 import { api, type Budget, type Category } from '../lib/api'
 import { cn } from '../lib/cn'
-import { formatEUR, MONTHS_DE } from '../lib/format'
+import { formatEUR, MONTHS_DE, parseAmount } from '../lib/format'
 
 export function Budgets() {
   const toast = useToast()
@@ -266,7 +266,7 @@ function BudgetModal({
           </label>
           <button
             onClick={() => {
-              const v = parseFloat(val.replace(',', '.'))
+              const v = parseAmount(val)
               if (!v || v <= 0) return toast.error('Bitte ein gültiges Limit eingeben.')
               setSaving(true)
               onSave(v)

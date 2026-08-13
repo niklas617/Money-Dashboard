@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import { Card, EmptyState, FadeIn, SectionHeader, Skeleton, Spinner } from '../components/ui'
 import { api, type Holding, type PriceAlert } from '../lib/api'
 import { cn } from '../lib/cn'
-import { formatPrice } from '../lib/format'
+import { formatPrice, parseDecimal } from '../lib/format'
 
 export function Alerts() {
   const toast = useToast()
@@ -198,7 +198,7 @@ function AddAlertModal({
   const save = async () => {
     const h = holdings.find((x) => x.symbol === symbol)
     if (!h) return
-    const t = parseFloat(target.replace(',', '.'))
+    const t = parseDecimal(target)
     if (!t || t <= 0) return toast.error('Bitte einen gültigen Zielkurs eingeben.')
     setSaving(true)
     try {

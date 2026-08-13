@@ -1,7 +1,7 @@
 import { Bitcoin, Check, Loader2, Search, TrendingUp } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api, type LookupResult, type SearchResult } from '../lib/api'
-import { formatPrice } from '../lib/format'
+import { formatPrice, parseDecimal } from '../lib/format'
 import { cn } from '../lib/cn'
 import { Modal } from './Modal'
 import { Spinner } from './ui'
@@ -92,8 +92,8 @@ export function AddTradeSheet({
 
   const save = async () => {
     if (!lookup) return
-    const qty = parseFloat(quantity.replace(',', '.'))
-    const pr = parseFloat(price.replace(',', '.'))
+    const qty = parseDecimal(quantity)
+    const pr = parseDecimal(price)
     if (!qty || qty <= 0) return toast.error('Bitte eine gültige Anzahl eingeben.')
     if (pr < 0 || Number.isNaN(pr)) return toast.error('Bitte einen gültigen Preis eingeben.')
 
@@ -120,8 +120,8 @@ export function AddTradeSheet({
   }
 
   const total = (() => {
-    const qty = parseFloat(quantity.replace(',', '.'))
-    const pr = parseFloat(price.replace(',', '.'))
+    const qty = parseDecimal(quantity)
+    const pr = parseDecimal(price)
     if (!qty || Number.isNaN(pr)) return 0
     return qty * pr
   })()

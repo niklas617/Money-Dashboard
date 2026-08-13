@@ -31,6 +31,7 @@ import {
   formatPercent,
   formatPrice,
   formatQuantity,
+  parseDecimal,
 } from '../lib/format'
 
 export function Portfolio() {
@@ -408,8 +409,8 @@ function EditTradeModal({
 
   const save = async () => {
     if (!trade) return
-    const qty = parseFloat(quantity.replace(',', '.'))
-    const pr = parseFloat(price.replace(',', '.'))
+    const qty = parseDecimal(quantity)
+    const pr = parseDecimal(price)
     if (!qty || qty <= 0) return toast.error('Bitte eine gültige Anzahl eingeben.')
     setSaving(true)
     try {

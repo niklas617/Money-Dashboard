@@ -28,7 +28,7 @@ import {
 } from '../components/ui'
 import { api, type Account, type Category, type Transaction } from '../lib/api'
 import { cn } from '../lib/cn'
-import { formatEUR, formatEURSigned, MONTHS_DE } from '../lib/format'
+import { formatEUR, formatEURSigned, MONTHS_DE, parseAmount } from '../lib/format'
 
 type TxFilter = 'ALL' | 'IN' | 'OUT'
 
@@ -629,7 +629,7 @@ function ReconcileModal({
         </label>
         <button
           onClick={() => {
-            const real = parseFloat(val.replace(',', '.'))
+            const real = parseAmount(val)
             if (Number.isNaN(real)) return
             onConfirm(real)
             onClose()
@@ -686,7 +686,7 @@ function BookingModal({
   }, [open, editTx, categories])
 
   const save = async () => {
-    const amt = parseFloat(amount.replace(',', '.'))
+    const amt = parseAmount(amount)
     if (!amt || amt <= 0) return toast.error('Bitte einen gültigen Betrag eingeben.')
     if (categoryId == null) return toast.error('Bitte eine Kategorie wählen.')
     const signed = type === 'expense' ? -Math.abs(amt) : Math.abs(amt)
