@@ -997,6 +997,20 @@ def get_net_worth_history(
 
     # 3. Beide Zeitreihen zusammenführen
     all_dates = sorted(list(set(list(portfolio_history.keys()) + list(fiat_history.keys()))))
+
+    # Sonderfall: weder Trades noch Buchungen -> es gibt keine Datumsreihe. Ein
+    # frisch abgeglichenes Konto (nur opening_balance, noch keine Buchung) wuerde
+    # sonst komplett verschwinden und die Uebersicht 0 anzeigen. Daher mindestens
+    # einen "Heute"-Punkt mit dem Anfangssaldo liefern.
+    if not all_dates and total_opening != 0.0:
+        today_str = datetime.utcnow().date().strftime("%Y-%m-%d")
+        return [{
+            "date": today_str,
+            "portfolio_value": 0.0,
+            "fiat_value": round(total_opening, 2),
+            "total_value": round(total_opening, 2),
+        }]
+
     result = []
     last_port = 0.0
     last_fiat = total_opening  # ohne Buchungen bleibt der Anfangssaldo stehen
