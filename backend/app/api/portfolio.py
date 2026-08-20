@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -14,6 +15,31 @@ from backend.app.db.database import engine
 from backend.app.db.models import Trade, TradeCreate, User, Transaction, Account
 
 router = APIRouter()
+
+
+# ---------- CoinGecko HTTP-Helfer ----------
+# Cloud-IPs (z. B. Render) werden von CoinGecko/Cloudflare abgewiesen, wenn kein
+# Browser-User-Agent gesetzt ist – deshalb liefen Aktien (Yahoo, mit UA), aber Krypto
+# nicht. Optional laesst sich ueber die Env-Variable COINGECKO_API_KEY ein (kostenloser)
+# Demo-Key setzen; das hebt Rate-Limits/Sperren zuverlaessig auf. Fuer einen Pro-Key
+# zusaetzlich COINGECKO_PRO=1 setzen.
+_CG_BASE = "https://api.coingecko.com/api/v3"
+_CG_PRO_BASE = "https://pro-api.coingecko.com/api/v3"
+
+
+def _cg_get(path: str, params: Optional[dict] = None, timeout: int = 10):
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    base = _CG_BASE
+    key = os.getenv("COINGECKO_API_KEY")
+    if key:
+        if os.getenv("COINGECKO_PRO", "").strip().lower() in ("1", "true", "yes"):
+            base = _CG_PRO_BASE
+            headers["x-cg-pro-api-key"] = key
+        else:
+            headers["x-cg-demo-api-key"] = key
+    url = base + (path if path.startswith("/") else "/" + path)
+    return http_requests.get(url, params=params or {}, headers=headers, timeout=timeout)
+
 
 # ---------- Erlaubte Werte fuer Trades ----------
 VALID_TRADE_TYPES = {"BUY", "SELL"}
@@ -400,8 +426,8 @@ def fetch_live_prices(
     if crypto_syms:
         ids = [_resolve_coin_id(s, coin_ids) for s in crypto_syms]
         try:
-            resp = http_requests.get(
-                "https://api.coingecko.com/api/v3/simple/price",
+            resp = _cg_get(
+                "/simple/price",
                 params={"ids": ",".join(ids), "vs_currencies": "eur"},
                 timeout=10,
             )
@@ -473,8 +499,8 @@ def fetch_price_history(
         else:  # crypto
             coin_id = _resolve_coin_id(sym, coin_ids)
             try:
-                resp = http_requests.get(
-                    f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart",
+                resp = _cg_get(
+                    f"/coins/{coin_id}/market_chart",
                     params={"vs_currency": "eur", "days": "365"},
                     timeout=15,
                 )
@@ -659,11 +685,7 @@ def search_assets(
 
     # ---- Kryptowaehrungen via CoinGecko ----
     try:
-        resp = http_requests.get(
-            "https://api.coingecko.com/api/v3/search",
-            params={"query": query},
-            timeout=5,
-        )
+        resp = _cg_get("/search", params={"query": query}, timeout=5)
         for coin in resp.json().get("coins", [])[:5]:
             results.append({
                 "symbol":     coin.get("symbol", "").upper(),
@@ -733,9 +755,13 @@ def lookup_asset(
 
     elif asset_type == "crypto":
         cg_id = coin_id or CRYPTO_ID_MAP.get(symbol, symbol.lower())
+        name, logo_url = symbol, ""
+        price_eur, price_usd = 0.0, 0.0
+
+        # 1) Vollstaendige Metadaten (Name, Logo, Kurs) via /coins/{id}.
         try:
-            resp = http_requests.get(
-                f"https://api.coingecko.com/api/v3/coins/{cg_id}",
+            resp = _cg_get(
+                f"/coins/{cg_id}",
                 params={
                     "localization":   "false",
                     "tickers":        "false",
@@ -743,30 +769,48 @@ def lookup_asset(
                     "community_data": "false",
                     "developer_data": "false",
                 },
-                timeout=10,
             )
-            if not resp.ok:
-                raise HTTPException(status_code=404, detail=f"Krypto '{symbol}' nicht gefunden.")
-            data        = resp.json()
-            market_data = data.get("market_data", {}).get("current_price", {})
-            price_eur   = float(market_data.get("eur", 0.0))
-            price_usd   = float(market_data.get("usd", 0.0))
+            if resp.ok:
+                data        = resp.json()
+                name        = data.get("name", symbol)
+                logo_url    = (data.get("image", {}) or {}).get("small", "") or ""
+                market_data = (data.get("market_data", {}) or {}).get("current_price", {}) or {}
+                price_eur   = float(market_data.get("eur", 0.0) or 0.0)
+                price_usd   = float(market_data.get("usd", 0.0) or 0.0)
+        except Exception:
+            pass
 
-            return {
-                "symbol":          symbol,
-                "name":            data.get("name", symbol),
-                "price_usd":       round(price_usd, 8),
-                "price_eur":       round(price_eur, 8),
-                "current_price":   round(price_eur, 8),
-                "native_currency": "USD",
-                "logo_url":        data.get("image", {}).get("small", ""),
-                "asset_type":      "crypto",
-                "coin_id":         cg_id,
-            }
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=404, detail=f"Krypto nicht gefunden: {e}")
+        # 2) Absicherung: fehlt der Kurs (z. B. Rate-Limit auf dem schweren Endpoint),
+        #    ueber den leichten /simple/price nachladen – so klappt der Trade trotzdem.
+        if price_eur <= 0:
+            try:
+                resp = _cg_get(
+                    "/simple/price",
+                    params={"ids": cg_id, "vs_currencies": "eur,usd"},
+                )
+                d = resp.json().get(cg_id, {}) if resp.ok else {}
+                price_eur = float(d.get("eur", 0.0) or 0.0) or price_eur
+                price_usd = float(d.get("usd", 0.0) or 0.0) or price_usd
+            except Exception:
+                pass
+
+        if price_eur <= 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Kurs fuer Krypto '{symbol}' nicht verfuegbar (CoinGecko).",
+            )
+
+        return {
+            "symbol":          symbol,
+            "name":            name,
+            "price_usd":       round(price_usd, 8),
+            "price_eur":       round(price_eur, 8),
+            "current_price":   round(price_eur, 8),
+            "native_currency": "USD",
+            "logo_url":        logo_url,
+            "asset_type":      "crypto",
+            "coin_id":         cg_id,
+        }
 
     raise HTTPException(status_code=400, detail="asset_type muss 'stock' oder 'crypto' sein.")
 
