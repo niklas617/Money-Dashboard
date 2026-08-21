@@ -14,6 +14,7 @@ import {
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { cn } from '../lib/cn'
+import { MonetraMark } from './MonetraMark'
 import type { ReactNode } from 'react'
 
 type NavItem = { to: string; label: string; icon: LucideIcon }
@@ -39,13 +40,10 @@ const BOTTOM: NavItem[] = [...PRIMARY, { to: '/mehr', label: 'Mehr', icon: Layou
 function Logo() {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gradient-mint shadow-glow">
-        <LineChart size={19} className="text-on-mint" strokeWidth={2.6} />
+      <div className="overflow-hidden rounded-[9px] shadow-glow">
+        <MonetraMark size={36} className="block" />
       </div>
-      <div className="leading-tight">
-        <div className="text-[15px] font-extrabold tracking-tight text-text-primary">Finanz</div>
-        <div className="-mt-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-mint">Dashboard</div>
-      </div>
+      <div className="text-[16px] font-extrabold tracking-tight text-text-primary">Monetra</div>
     </div>
   )
 }

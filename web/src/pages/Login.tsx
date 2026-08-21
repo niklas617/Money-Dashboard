@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
-import { ArrowRight, Lock, LineChart, User } from 'lucide-react'
+import { ArrowRight, Lock, User } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { GoogleButton } from '../components/GoogleButton'
+import { MonetraMark } from '../components/MonetraMark'
 import { Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError } from '../lib/api'
@@ -64,10 +65,10 @@ export function Login() {
         className="relative w-full max-w-[400px]"
       >
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-mint shadow-glow">
-            <LineChart size={28} className="text-on-mint" strokeWidth={2.6} />
+          <div className="mb-4 overflow-hidden rounded-[14px] shadow-glow">
+            <MonetraMark size={60} className="block" />
           </div>
-          <h1 className="text-[26px] font-extrabold tracking-tight text-text-primary">Finanz-Dashboard</h1>
+          <h1 className="text-[26px] font-extrabold tracking-tight text-text-primary">Monetra</h1>
           <p className="mt-1 text-[14px] text-text-secondary">
             Dein Vermögen. Deine Trades. Auf einen Blick.
           </p>

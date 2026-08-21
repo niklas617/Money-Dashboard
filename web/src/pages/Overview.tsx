@@ -1,18 +1,13 @@
 import { motion } from 'framer-motion'
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  CandlestickChart,
-  RefreshCw,
-  Wallet,
-} from 'lucide-react'
+import { CandlestickChart, RefreshCw, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatedNumber } from '../components/AnimatedNumber'
 import { AreaChart } from '../components/AreaChart'
+import { CashflowCard } from '../components/CashflowCard'
 import { Card, FadeIn, Overline, PerformancePill, Skeleton } from '../components/ui'
 import { api, type NetWorthPoint } from '../lib/api'
-import { formatEUR, formatEURSigned, formatPercent, MONTHS_DE } from '../lib/format'
+import { formatEUR, formatEURSigned, formatPercent } from '../lib/format'
 import { cn } from '../lib/cn'
 
 type Range = { key: string; label: string; days: number | null }
@@ -99,8 +94,6 @@ export function Overview() {
     return { abs, pct, up: abs >= 0 }
   }, [history, current])
 
-  const monthName = MONTHS_DE[new Date().getMonth()]
-
   return (
     <div className="flex flex-col gap-7">
       {/* --- Kopfzeile --- */}
@@ -176,36 +169,10 @@ export function Overview() {
 
       {/* --- Cashflow --- */}
       {loading ? (
-        <Skeleton className="h-[120px] w-full rounded-lg" />
+        <Skeleton className="h-[150px] w-full rounded-lg" />
       ) : (
         <FadeIn delay={0.05}>
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <Overline>Cashflow · {monthName}</Overline>
-              <span
-                className={cn(
-                  'tnum text-[13px] font-bold',
-                  cashflow.income - cashflow.expense >= 0 ? 'text-mint' : 'text-negative',
-                )}
-              >
-                {formatEURSigned(cashflow.income - cashflow.expense)}
-              </span>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <CashflowTile
-                label="Einnahmen"
-                value={cashflow.income}
-                positive
-                icon={<ArrowDownLeft size={16} />}
-              />
-              <CashflowTile
-                label="Ausgaben"
-                value={cashflow.expense}
-                positive={false}
-                icon={<ArrowUpRight size={16} />}
-              />
-            </div>
-          </Card>
+          <CashflowCard income={cashflow.income} expense={cashflow.expense} />
         </FadeIn>
       )}
 
@@ -257,39 +224,6 @@ function RangeSelector({ value, onChange }: { value: string; onChange: (k: strin
           {r.label}
         </button>
       ))}
-    </div>
-  )
-}
-
-function CashflowTile({
-  label,
-  value,
-  positive,
-  icon,
-}: {
-  label: string
-  value: number
-  positive: boolean
-  icon: React.ReactNode
-}) {
-  const color = positive ? 'text-mint' : 'text-negative'
-  return (
-    <div className="rounded-md border border-border bg-surface-elevated/60 p-3.5">
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-sm',
-            positive ? 'bg-mint/15 text-mint' : 'bg-negative/15 text-negative',
-          )}
-        >
-          {icon}
-        </span>
-        <span className="text-[12px] font-medium text-text-secondary">{label}</span>
-      </div>
-      <div className={cn('mt-2.5 tnum text-[19px] font-extrabold tracking-tight', color)}>
-        {positive ? '+' : '−'}
-        {formatEUR(value).replace('-', '')}
-      </div>
     </div>
   )
 }
