@@ -4,7 +4,9 @@ import { useAuth } from './lib/auth'
 import { Login } from './pages/Login'
 import { Overview } from './pages/Overview'
 import { Portfolio } from './pages/Portfolio'
+import { Trades } from './pages/Trades'
 import { Accounts } from './pages/Accounts'
+import { Buchungen } from './pages/Buchungen'
 import { Budgets } from './pages/Budgets'
 import { Alerts } from './pages/Alerts'
 import { Export } from './pages/Export'
@@ -28,7 +30,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/portfolio/trades" element={<Trades />} />
         <Route path="/konten" element={<Accounts />} />
+        <Route path="/konten/buchungen" element={<Buchungen />} />
         <Route path="/budgets" element={<Budgets />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/export" element={<Export />} />

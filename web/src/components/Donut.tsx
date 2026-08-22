@@ -19,12 +19,16 @@ export function Donut({
   thickness = 26,
   centerLabel,
   centerValue,
+  rounded = true,
+  interactive = true,
 }: {
   slices: DonutSlice[]
   size?: number
   thickness?: number
   centerLabel?: string
   centerValue?: string
+  rounded?: boolean
+  interactive?: boolean
 }) {
   const [active, setActive] = useState<number | null>(null)
   const total = slices.reduce((s, x) => s + x.value, 0)
@@ -58,14 +62,14 @@ export function Donut({
             strokeWidth={active === s.i ? thickness + 5 : thickness}
             strokeDasharray={`${s.len} ${circ - s.len}`}
             strokeDashoffset={s.dashOffset}
-            strokeLinecap="round"
-            onMouseEnter={() => setActive(s.i)}
-            onMouseLeave={() => setActive(null)}
-            style={{ transition: 'stroke-width 0.18s ease', cursor: 'pointer' }}
+            strokeLinecap={rounded ? 'round' : 'butt'}
+            onMouseEnter={interactive ? () => setActive(s.i) : undefined}
+            onMouseLeave={interactive ? () => setActive(null) : undefined}
+            style={{ transition: 'stroke-width 0.18s ease', cursor: interactive ? 'pointer' : 'default' }}
           />
         ))}
       </g>
-      {(centerValue || active != null) && (
+      {(centerValue || (interactive && active != null)) && (
         <>
           <text x={cx} y={cy - 6} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="#616B66">
             {active != null ? segs[active].label : centerLabel}

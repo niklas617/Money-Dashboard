@@ -4,7 +4,7 @@ load_dotenv()
 import json
 import io
 from typing import List
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlmodel import Session, select
@@ -176,6 +176,8 @@ async def scan_bank_statement(
         WICHTIGE REGELN:
         - Ausgaben MÜSSEN zwingend negative Zahlen sein (z.B. -15.99).
         - Einnahmen sind positive Zahlen.
+        - REIHENFOLGE: Gib die Transaktionen in EXAKT der Reihenfolge zurück, wie sie im Bild
+          von oben nach unten stehen. Sortiere NICHT um und lasse keine Einträge aus.
         - Antworte AUSSCHLIESSLICH mit dem validen JSON-Array. Keine Einleitung, kein Markdown, keine Code-Blöcke (kein ```json). Nur das reine Array.
         """
 
@@ -193,23 +195,35 @@ async def scan_bank_statement(
         # JSON in eine Python-Liste umwandeln
         transactions_data = json.loads(response_text)
 
-        # 7. Die ausgelesenen Daten in die Datenbank schreiben
+        # 7. Die ausgelesenen Daten in die Datenbank schreiben.
+        #    Die Lese-Reihenfolge aus dem Auszug wird in die Uhrzeit kodiert: Der oberste
+        #    Eintrag (i=0) bekommt die späteste Uhrzeit des Tages. Da die App die Buchungen
+        #    nach Datum absteigend sortiert, erscheint die Liste dann exakt in der Reihenfolge
+        #    wie auf dem Bild (auch bei mehreren Buchungen am selben Tag).
         saved_count = 0
-        for t_data in transactions_data:
+        for i, t_data in enumerate(transactions_data):
             cat_name = t_data.get("category")
             cat_id = cat_map.get(cat_name, fallback_cat_id)
+
+            raw_date = str(t_data.get("date", "")).strip()[:10]
+            try:
+                base = datetime.strptime(raw_date, "%Y-%m-%d")
+            except ValueError:
+                base = datetime.utcnow().replace(microsecond=0)
+            # Mittags starten und pro Position eine Sekunde zurück -> oberster Eintrag zuerst.
+            tx_dt = base.replace(hour=12, minute=0, second=0, microsecond=0) - timedelta(seconds=i)
 
             new_tx = Transaction(
                 amount=float(t_data["amount"]),
                 note=t_data.get("note", "KI Scan"),
-                date=t_data["date"],
+                date=tx_dt,
                 account_id=account_id,
                 category_id=cat_id,
                 user_id=current_user.id
             )
             session.add(new_tx)
             saved_count += 1
-            
+
         session.commit()
 
         return {"status": "success", "count": saved_count}

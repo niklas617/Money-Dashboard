@@ -1,12 +1,15 @@
 import {
+  ArrowRight,
   Bitcoin,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AddTradeSheet } from '../components/AddTradeSheet'
 import { AnimatedNumber } from '../components/AnimatedNumber'
 import { AreaChart } from '../components/AreaChart'
@@ -31,6 +34,7 @@ import {
   formatPercent,
   formatPrice,
   formatQuantity,
+  formatDate,
   parseDecimal,
 } from '../lib/format'
 
@@ -43,6 +47,9 @@ export function Portfolio() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editTrade, setEditTrade] = useState<Trade | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Trade | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const navigate = useNavigate()
 
   const loadAll = async () => {
     try {
@@ -61,6 +68,12 @@ export function Portfolio() {
     } catch {
       /* egal */
     }
+  }
+
+  const refresh = async () => {
+    setRefreshing(true)
+    await loadAll()
+    setRefreshing(false)
   }
 
   useEffect(() => {
@@ -91,10 +104,19 @@ export function Portfolio() {
           <h1 className="text-[22px] font-extrabold tracking-tight text-text-primary">Portfolio</h1>
           <p className="text-[13px] text-text-muted">Aktien &amp; Krypto · Live-Kurse in EUR</p>
         </div>
-        <button onClick={() => setSheetOpen(true)} className="btn-primary !px-4 !py-2.5">
-          <Plus size={18} strokeWidth={2.6} />
-          <span className="hidden sm:inline">Trade</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refresh}
+            title="Aktualisieren"
+            className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-text-secondary transition-colors hover:text-mint"
+          >
+            <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => setSheetOpen(true)} className="btn-primary !px-4 !py-2.5">
+            <Plus size={18} strokeWidth={2.6} />
+            <span className="hidden sm:inline">Trade</span>
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -211,22 +233,54 @@ export function Portfolio() {
           <div className="flex flex-col gap-3">
             <SectionHeader title="Trade-Logbuch" trailing={<span className="chip">{trades.length}</span>} />
             <Card className="divide-y divide-border overflow-hidden">
-              {trades.map((t) => (
-                <TradeRow
-                  key={t.id}
-                  t={t}
-                  onEdit={() => setEditTrade(t)}
-                  onDelete={() => removeTrade(t.id)}
-                  deleting={deletingId === t.id}
-                />
-              ))}
+              {[...trades]
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .slice(0, 5)
+                .map((t) => (
+                  <TradeRow
+                    key={t.id}
+                    t={t}
+                    onEdit={() => setEditTrade(t)}
+                    onDelete={() => setConfirmDelete(t)}
+                    deleting={deletingId === t.id}
+                  />
+                ))}
             </Card>
+            <button
+              onClick={() => navigate('/portfolio/trades')}
+              className="flex items-center justify-center gap-2 rounded-md border border-border bg-surface py-3 text-[13.5px] font-bold text-text-secondary transition-colors hover:border-border-strong hover:text-mint"
+            >
+              Alle Trades ansehen &amp; filtern (Jahr / Monat)
+              <ArrowRight size={16} />
+            </button>
           </div>
         </FadeIn>
       )}
 
       <AddTradeSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSaved={loadAll} />
       <EditTradeModal trade={editTrade} onClose={() => setEditTrade(null)} onSaved={loadAll} />
+
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Trade löschen?">
+        <div className="flex flex-col gap-4">
+          <p className="text-[13.5px] leading-relaxed text-text-secondary">
+            {confirmDelete?.symbol} wirklich löschen? Das lässt sich nicht rückgängig machen.
+          </p>
+          <div className="flex gap-2.5">
+            <button onClick={() => setConfirmDelete(null)} className="btn-ghost flex-1 justify-center">
+              Abbrechen
+            </button>
+            <button
+              onClick={() => {
+                if (confirmDelete) removeTrade(confirmDelete.id)
+                setConfirmDelete(null)
+              }}
+              className="flex-1 justify-center rounded-md bg-negative/15 py-3 text-[14px] font-bold text-negative transition-colors hover:bg-negative/25"
+            >
+              Löschen
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -329,7 +383,7 @@ function Metric({ label, value, color }: { label: string; value: string; color?:
   )
 }
 
-function TradeRow({
+export function TradeRow({
   t,
   onEdit,
   onDelete,
@@ -359,7 +413,7 @@ function TradeRow({
           </span>
         </div>
         <div className="truncate text-[11.5px] text-text-muted">
-          {formatQuantity(t.quantity)} × {formatPrice(t.price_per_unit)} · {String(t.date).slice(0, 10)}
+          {formatQuantity(t.quantity)} × {formatPrice(t.price_per_unit)} · {formatDate(t.date)}
         </div>
       </div>
       <div className="text-right">
@@ -386,7 +440,7 @@ function TradeRow({
   )
 }
 
-function EditTradeModal({
+export function EditTradeModal({
   trade,
   onClose,
   onSaved,
@@ -396,14 +450,18 @@ function EditTradeModal({
   onSaved: () => void
 }) {
   const toast = useToast()
+  const [tradeType, setTradeType] = useState<'BUY' | 'SELL'>('BUY')
   const [quantity, setQuantity] = useState('')
   const [price, setPrice] = useState('')
+  const [date, setDate] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (trade) {
+      setTradeType(trade.trade_type === 'SELL' ? 'SELL' : 'BUY')
       setQuantity(String(trade.quantity))
       setPrice(String(trade.price_per_unit))
+      setDate(new Date(trade.date).toISOString().slice(0, 10))
     }
   }, [trade])
 
@@ -412,9 +470,15 @@ function EditTradeModal({
     const qty = parseDecimal(quantity)
     const pr = parseDecimal(price)
     if (!qty || qty <= 0) return toast.error('Bitte eine gültige Anzahl eingeben.')
+    if (pr < 0 || Number.isNaN(pr)) return toast.error('Bitte einen gültigen Preis eingeben.')
     setSaving(true)
     try {
-      await api.updateTrade(trade.id, { quantity: qty, price_per_unit: pr })
+      await api.updateTrade(trade.id, {
+        quantity: qty,
+        price_per_unit: pr,
+        trade_type: tradeType,
+        date: `${date}T12:00:00`,
+      })
       toast.success('Trade aktualisiert.')
       onSaved()
       onClose()
@@ -429,9 +493,27 @@ function EditTradeModal({
     <Modal open={!!trade} onClose={onClose} title={trade ? `${trade.symbol} bearbeiten` : ''}>
       {trade && (
         <div className="flex flex-col gap-4">
-          <p className="text-[13px] text-text-muted">
-            {trade.asset_name} · {trade.trade_type === 'BUY' ? 'Kauf' : 'Verkauf'}
-          </p>
+          <p className="text-[13px] text-text-muted">{trade.asset_name}</p>
+
+          <div className="grid grid-cols-2 gap-2">
+            {(['BUY', 'SELL'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTradeType(t)}
+                className={cn(
+                  'rounded-md border py-3 text-[14px] font-bold transition-all',
+                  tradeType === t
+                    ? t === 'BUY'
+                      ? 'border-mint bg-mint/15 text-mint'
+                      : 'border-negative bg-negative/15 text-negative'
+                    : 'border-border bg-surface text-text-secondary hover:border-border-strong',
+                )}
+              >
+                {t === 'BUY' ? 'Kauf' : 'Verkauf'}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-semibold text-text-secondary">Anzahl</span>
@@ -452,6 +534,17 @@ function EditTradeModal({
               />
             </label>
           </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-semibold text-text-secondary">Datum</span>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="input [color-scheme:dark]"
+            />
+          </label>
+
           <button onClick={save} disabled={saving} className="btn-primary w-full">
             {saving ? <Spinner size={18} className="border-on-mint/40 border-t-on-mint" /> : 'Änderungen speichern'}
           </button>

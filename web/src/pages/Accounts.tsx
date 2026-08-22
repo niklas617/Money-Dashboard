@@ -1,5 +1,6 @@
 import {
   ArrowDownLeft,
+  ArrowRight,
   ArrowUpRight,
   Pencil,
   PencilLine,
@@ -11,6 +12,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AnimatedNumber } from '../components/AnimatedNumber'
 import { AreaChart } from '../components/AreaChart'
 import { CHART_COLORS, Donut } from '../components/Donut'
@@ -28,12 +30,14 @@ import {
 } from '../components/ui'
 import { api, type Account, type Category, type Transaction } from '../lib/api'
 import { cn } from '../lib/cn'
-import { formatEUR, formatEURSigned, MONTHS_DE, parseAmount } from '../lib/format'
+import { CashflowCard } from '../components/CashflowCard'
+import { formatEUR, formatEURSigned, parseAmount } from '../lib/format'
 
 type TxFilter = 'ALL' | 'IN' | 'OUT'
 
 export function Accounts() {
   const toast = useToast()
+  const navigate = useNavigate()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [activeAcc, setActiveAcc] = useState<number | null>(null)
@@ -73,7 +77,9 @@ export function Accounts() {
     setLoadingTx(true)
     try {
       const allTx = await api.getTransactions(accId, year)
-      setTxs(allTx.filter((t) => new Date(t.date).getFullYear() === year))
+      // Wie die Mobile-App: ALLE Buchungen des Kontos anzeigen/auswerten
+      // (Liste, Analyse, Ein-/Ausgaben gesamt). Saldo = Summe aller Buchungen.
+      setTxs(allTx)
       setAllTimeSum(allTx.reduce((s, t) => s + t.amount, 0))
     } catch {
       setTxs([])
@@ -272,8 +278,8 @@ export function Accounts() {
               Anfangssaldo {formatEUR(opening)} · Buchungen {formatEURSigned(allTimeSum)}
             </p>
             <div className="mt-4 flex gap-8">
-              <HeroMini label={`Einnahmen ${year}`} value={yearStats.income} color="text-mint" />
-              <HeroMini label={`Ausgaben ${year}`} value={yearStats.expense} color="text-negative" />
+              <HeroMini label="Einnahmen gesamt" value={yearStats.income} color="text-mint" />
+              <HeroMini label="Ausgaben gesamt" value={yearStats.expense} color="text-negative" />
             </div>
           </Card>
         </FadeIn>
@@ -281,29 +287,16 @@ export function Accounts() {
 
       {!loadingTx && (
         <>
-          {/* --- Monats-Cashflow --- */}
+          {/* --- Monats-Cashflow (identisch zur Mobile-App) --- */}
           <FadeIn delay={0.05}>
-            <Card className="p-5">
-              <div className="flex items-center justify-between">
-                <Overline>Cashflow · {MONTHS_DE[now.getMonth()]}</Overline>
-                <span
-                  className={cn(
-                    'tnum text-[13px] font-bold',
-                    yearStats.mIncome - yearStats.mExpense >= 0 ? 'text-mint' : 'text-negative',
-                  )}
-                >
-                  {formatEURSigned(yearStats.mIncome - yearStats.mExpense)}
-                </span>
-              </div>
-              <IncomeExpenseBars income={yearStats.mIncome} expense={yearStats.mExpense} />
-            </Card>
+            <CashflowCard income={yearStats.mIncome} expense={yearStats.mExpense} />
           </FadeIn>
 
           {/* --- Analytics: 2 Kuchendiagramme --- */}
           {(yearStats.incomeSlices.length > 0 || yearStats.expenseSlices.length > 0) && (
             <FadeIn delay={0.08}>
               <div className="flex flex-col gap-3">
-                <SectionHeader title={`Analyse ${year}`} />
+                <SectionHeader title="Analytics" />
                 <div className="grid gap-4 lg:grid-cols-2">
                   {yearStats.incomeSlices.length > 0 && (
                     <PieCard
@@ -328,7 +321,7 @@ export function Accounts() {
           {balanceSeries.length > 1 && (
             <FadeIn delay={0.1}>
               <Card className="p-5">
-                <Overline>Kontostand-Verlauf {year}</Overline>
+                <Overline>Kontostand-Verlauf</Overline>
                 <div className="mt-3">
                   <AreaChart data={balanceSeries} formatValue={formatEUR} height={210} />
                 </div>
@@ -336,53 +329,34 @@ export function Accounts() {
             </FadeIn>
           )}
 
-          {/* --- Buchungen mit Suche/Filter --- */}
+          {/* --- Buchungen: Vorschau + eigene, filterbare Seite --- */}
           <FadeIn delay={0.12}>
             <div className="flex flex-col gap-3">
               <SectionHeader title="Buchungen" trailing={<span className="chip">{visibleTxs.length}</span>} />
 
-              <div className="flex flex-col gap-2.5">
-                <div className="relative">
-                  <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Buchung suchen (Kategorie / Notiz) …"
-                    className="input pl-10"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  {(['ALL', 'IN', 'OUT'] as const).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      className={cn(
-                        'rounded-pill border px-3.5 py-1.5 text-[12.5px] font-bold transition-colors',
-                        filter === f
-                          ? 'border-mint bg-mint text-on-mint'
-                          : 'border-border bg-surface-high text-text-secondary hover:border-border-strong',
-                      )}
-                    >
-                      {f === 'ALL' ? 'Alle' : f === 'IN' ? 'Einnahmen' : 'Ausgaben'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {visibleTxs.length === 0 ? (
-                <EmptyState icon={Wallet} title="Keine Buchungen" hint={`Für ${year} sind keine passenden Buchungen vorhanden.`} />
+                <EmptyState icon={Wallet} title="Keine Buchungen" hint="Noch keine Buchungen vorhanden." />
               ) : (
-                <Card className="divide-y divide-border overflow-hidden">
-                  {visibleTxs.map((t) => (
-                    <TxRow
-                      key={t.id}
-                      t={t}
-                      category={catMap.get(t.category_id) ?? 'Unbekannt'}
-                      onEdit={() => setEditTx(t)}
-                      onDelete={() => removeTx(t.id)}
-                    />
-                  ))}
-                </Card>
+                <>
+                  <Card className="divide-y divide-border overflow-hidden">
+                    {visibleTxs.slice(0, 5).map((t) => (
+                      <TxRow
+                        key={t.id}
+                        t={t}
+                        category={catMap.get(t.category_id) ?? 'Unbekannt'}
+                        onEdit={() => setEditTx(t)}
+                        onDelete={() => removeTx(t.id)}
+                      />
+                    ))}
+                  </Card>
+                  <button
+                    onClick={() => navigate('/konten/buchungen')}
+                    className="flex items-center justify-center gap-2 rounded-md border border-border bg-surface py-3 text-[13.5px] font-bold text-text-secondary transition-colors hover:border-border-strong hover:text-mint"
+                  >
+                    Alle Buchungen ansehen &amp; filtern (Jahr / Monat)
+                    <ArrowRight size={16} />
+                  </button>
+                </>
               )}
             </div>
           </FadeIn>
@@ -510,43 +484,17 @@ function HeroMini({ label, value, color }: { label: string; value: number; color
   )
 }
 
-function IncomeExpenseBars({ income, expense }: { income: number; expense: number }) {
-  const max = Math.max(income, expense, 1)
-  return (
-    <div className="mt-4 flex flex-col gap-4">
-      <Bar label="Einnahmen" value={income} pct={(income / max) * 100} color="#35E0A1" icon={<ArrowDownLeft size={14} />} />
-      <Bar label="Ausgaben" value={expense} pct={(expense / max) * 100} color="#FF6B6B" icon={<ArrowUpRight size={14} />} />
-    </div>
-  )
-}
-
-function Bar({ label, value, pct, color, icon }: { label: string; value: number; pct: number; color: string; icon: React.ReactNode }) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-text-secondary">
-          <span style={{ color }}>{icon}</span>
-          {label}
-        </span>
-        <span className="tnum text-[13px] font-bold text-text-primary">{formatEUR(value)}</span>
-      </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-pill bg-surface-elevated">
-        <div className="h-full rounded-pill transition-all duration-700" style={{ width: `${Math.max(2, pct)}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  )
-}
 
 function PieCard({ title, slices, total }: { title: string; slices: { label: string; value: number }[]; total: number }) {
   return (
     <Card className="p-5">
-      <Overline>{title}</Overline>
-      <div className="mt-3 flex items-center gap-4">
-        <Donut slices={slices} centerLabel="Gesamt" centerValue={formatEUR(total).replace(' €', '')} />
+      <div className="text-[15.5px] font-bold tracking-[-0.01em] text-text-primary">{title}</div>
+      <div className="mt-4 flex items-center gap-4">
+        <Donut slices={slices} size={148} thickness={24} rounded={false} interactive={false} />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          {slices.slice(0, 6).map((c, i) => (
+          {slices.map((c, i) => (
             <div key={c.label} className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="h-[9px] w-[9px] shrink-0 rounded-[3px]" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
               <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-text-primary">{c.label}</span>
               <span className="tnum text-[12px] font-semibold text-text-secondary">
                 {total > 0 ? ((c.value / total) * 100).toFixed(0) : 0} %
@@ -559,7 +507,7 @@ function PieCard({ title, slices, total }: { title: string; slices: { label: str
   )
 }
 
-function TxRow({
+export function TxRow({
   t,
   category,
   onEdit,
@@ -584,7 +532,7 @@ function TxRow({
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-semibold text-text-primary">{t.note || category}</div>
         <div className="text-[11.5px] text-text-muted">
-          {category} · {new Date(t.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+          {category} · {new Date(t.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
         </div>
       </div>
       <span className={cn('tnum shrink-0 text-[14px] font-bold', isIncome ? 'text-mint' : 'text-negative')}>
@@ -644,7 +592,7 @@ function ReconcileModal({
   )
 }
 
-function BookingModal({
+export function BookingModal({
   open,
   onClose,
   categories,
