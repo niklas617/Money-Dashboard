@@ -13,6 +13,7 @@ export function Alerts() {
   const [holdings, setHoldings] = useState<Holding[]>([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<PriceAlert | null>(null)
 
   const load = async () => {
     try {
@@ -106,7 +107,7 @@ export function Alerts() {
                   alert={a}
                   price={priceMap.get(a.symbol)}
                   triggered={wouldTrigger(a)}
-                  onDelete={() => remove(a.id)}
+                  onDelete={() => setConfirmDelete(a)}
                 />
               ))}
             </div>
@@ -115,6 +116,28 @@ export function Alerts() {
       )}
 
       <AddAlertModal open={addOpen} onClose={() => setAddOpen(false)} holdings={holdings} onSaved={load} />
+
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Alert löschen?">
+        <div className="flex flex-col gap-4">
+          <p className="text-[13.5px] leading-relaxed text-text-secondary">
+            Alert für {confirmDelete?.symbol} wirklich löschen?
+          </p>
+          <div className="flex gap-2.5">
+            <button onClick={() => setConfirmDelete(null)} className="btn-ghost flex-1 justify-center">
+              Abbrechen
+            </button>
+            <button
+              onClick={() => {
+                if (confirmDelete) remove(confirmDelete.id)
+                setConfirmDelete(null)
+              }}
+              className="flex-1 justify-center rounded-md bg-negative/15 py-3 text-[14px] font-bold text-negative transition-colors hover:bg-negative/25"
+            >
+              Löschen
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

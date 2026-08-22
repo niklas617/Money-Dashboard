@@ -50,6 +50,7 @@ export function Accounts() {
   const [chooserOpen, setChooserOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [editTx, setEditTx] = useState<Transaction | null>(null)
+  const [confirmDeleteTx, setConfirmDeleteTx] = useState<Transaction | null>(null)
   const [reconcileOpen, setReconcileOpen] = useState(false)
   const [creatingAcc, setCreatingAcc] = useState(false)
   const [query, setQuery] = useState('')
@@ -345,7 +346,7 @@ export function Accounts() {
                         t={t}
                         category={catMap.get(t.category_id) ?? 'Unbekannt'}
                         onEdit={() => setEditTx(t)}
-                        onDelete={() => removeTx(t.id)}
+                        onDelete={() => setConfirmDeleteTx(t)}
                       />
                     ))}
                   </Card>
@@ -402,6 +403,28 @@ export function Accounts() {
         accountId={activeAcc!}
         onSaved={() => activeAcc != null && loadTx(activeAcc)}
       />
+
+      <Modal open={!!confirmDeleteTx} onClose={() => setConfirmDeleteTx(null)} title="Buchung löschen?">
+        <div className="flex flex-col gap-4">
+          <p className="text-[13.5px] leading-relaxed text-text-secondary">
+            Diese Buchung wirklich löschen? Das lässt sich nicht rückgängig machen.
+          </p>
+          <div className="flex gap-2.5">
+            <button onClick={() => setConfirmDeleteTx(null)} className="btn-ghost flex-1 justify-center">
+              Abbrechen
+            </button>
+            <button
+              onClick={() => {
+                if (confirmDeleteTx) removeTx(confirmDeleteTx.id)
+                setConfirmDeleteTx(null)
+              }}
+              className="flex-1 justify-center rounded-md bg-negative/15 py-3 text-[14px] font-bold text-negative transition-colors hover:bg-negative/25"
+            >
+              Löschen
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
