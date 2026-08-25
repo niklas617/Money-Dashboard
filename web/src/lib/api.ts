@@ -73,7 +73,9 @@ async function request<T>(endpoint: string, opts: ReqOptions = {}): Promise<T> {
 
   let res: Response
   try {
-    res = await fetch(url, { method, headers, body: payload, signal })
+    // cache: 'no-store' -> immer frische Daten (kein Anzeigen alter, gecachter Werte
+    // beim Seitenwechsel / App-Öffnen).
+    res = await fetch(url, { method, headers, body: payload, signal, cache: 'no-store' })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
     throw new ApiError(0, 'Verbindungsfehler – Backend nicht erreichbar.')
