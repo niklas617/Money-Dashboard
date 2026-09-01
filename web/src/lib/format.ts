@@ -147,3 +147,44 @@ export const MONTHS_SHORT_DE = [
   'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
   'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez',
 ]
+
+/**
+ * Berechnet Einnahmen/Ausgaben für die Cashflow-Karte. Nimmt den laufenden Monat;
+ * wenn dieser noch keine Buchungen hat (z. B. Monatsanfang), fällt sie automatisch
+ * auf den jüngsten Monat mit Buchungen zurück – so ist die Karte nie leer.
+ */
+export function monthlyCashflow(
+  txs: { amount: number; date: string | Date }[],
+): { income: number; expense: number; monthLabel: string } {
+  const now = new Date()
+  const inMonth = (y: number, m: number) =>
+    txs.some((t) => {
+      const d = new Date(t.date)
+      return d.getFullYear() === y && d.getMonth() === m
+    })
+
+  let year = now.getFullYear()
+  let month = now.getMonth()
+  if (!inMonth(year, month)) {
+    let latest: Date | null = null
+    for (const t of txs) {
+      const d = new Date(t.date)
+      if (!latest || d.getTime() > latest.getTime()) latest = d
+    }
+    if (latest) {
+      year = latest.getFullYear()
+      month = latest.getMonth()
+    }
+  }
+
+  let income = 0
+  let expense = 0
+  for (const t of txs) {
+    const d = new Date(t.date)
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      if (t.amount > 0) income += t.amount
+      else expense += Math.abs(t.amount)
+    }
+  }
+  return { income, expense, monthLabel: MONTHS_DE[month] }
+}

@@ -31,7 +31,7 @@ import {
 import { api, type Account, type Category, type Transaction } from '../lib/api'
 import { cn } from '../lib/cn'
 import { CashflowCard } from '../components/CashflowCard'
-import { formatEUR, formatEURSigned, parseAmount } from '../lib/format'
+import { formatEUR, formatEURSigned, monthlyCashflow, parseAmount } from '../lib/format'
 
 type TxFilter = 'ALL' | 'IN' | 'OUT'
 
@@ -133,6 +133,12 @@ export function Accounts() {
       [...m.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
     return { income, expense, mIncome, mExpense, incomeSlices: toSlices(inc), expenseSlices: toSlices(exp) }
   }, [txs, catMap, now])
+
+  // Cashflow-Karte: laufender Monat, sonst jüngster Monat mit Buchungen (nie leer).
+  const cashflow = useMemo(
+    () => monthlyCashflow(txs.map((t) => ({ amount: t.amount, date: t.date }))),
+    [txs],
+  )
 
   // Kontostand-Verlauf: kumuliert ab Jahresanfangssaldo
   const balanceSeries = useMemo(() => {
@@ -290,7 +296,7 @@ export function Accounts() {
         <>
           {/* --- Monats-Cashflow (identisch zur Mobile-App) --- */}
           <FadeIn delay={0.05}>
-            <CashflowCard income={yearStats.mIncome} expense={yearStats.mExpense} />
+            <CashflowCard income={cashflow.income} expense={cashflow.expense} monthLabel={cashflow.monthLabel} />
           </FadeIn>
 
           {/* --- Analytics: 2 Kuchendiagramme --- */}

@@ -9,10 +9,18 @@ import { formatEUR, MONTHS_DE } from '../lib/format'
  * Burn-Rate-Leiste (Anteil der ausgegebenen Einnahmen). Gleiche Logik wie in der App:
  * Balken grün < 70 %, orange 70–90 %, rot > 90 %.
  */
-export function CashflowCard({ income, expense }: { income: number; expense: number }) {
+export function CashflowCard({
+  income,
+  expense,
+  monthLabel,
+}: {
+  income: number
+  expense: number
+  monthLabel?: string
+}) {
   const balance = income - expense
   const expenseRatio = income > 0 ? Math.min(expense / income, 1) : 0
-  const monthName = MONTHS_DE[new Date().getMonth()]
+  const monthName = monthLabel ?? MONTHS_DE[new Date().getMonth()]
 
   const barColor = expenseRatio > 0.9 ? 'bg-negative' : expenseRatio > 0.7 ? 'bg-warning' : 'bg-mint'
 

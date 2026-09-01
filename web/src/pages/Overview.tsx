@@ -7,7 +7,7 @@ import { AreaChart } from '../components/AreaChart'
 import { CashflowCard } from '../components/CashflowCard'
 import { Card, FadeIn, Overline, PerformancePill, Skeleton } from '../components/ui'
 import { api, type NetWorthPoint } from '../lib/api'
-import { formatEUR, formatEURSigned, formatPercent } from '../lib/format'
+import { formatEUR, formatEURSigned, formatPercent, monthlyCashflow } from '../lib/format'
 import { cn } from '../lib/cn'
 
 type Range = { key: string; label: string; days: number | null }
@@ -25,7 +25,10 @@ export function Overview() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [rangeKey, setRangeKey] = useState('3m')
-  const [cashflow, setCashflow] = useState<{ income: number; expense: number }>({ income: 0, expense: 0 })
+  const [cashflow, setCashflow] = useState<{ income: number; expense: number; monthLabel?: string }>({
+    income: 0,
+    expense: 0,
+  })
 
   const load = async (soft = false) => {
     soft ? setRefreshing(true) : setLoading(true)
@@ -43,22 +46,12 @@ export function Overview() {
   const loadCashflow = async () => {
     try {
       const accounts = await api.getAccounts()
-      const now = new Date()
-      let income = 0
-      let expense = 0
+      const year = new Date().getFullYear()
       const results = await Promise.all(
-        accounts.map((a) => api.getTransactions(a.id, now.getFullYear()).catch(() => [])),
+        accounts.map((a) => api.getTransactions(a.id, year).catch(() => [])),
       )
-      for (const txs of results) {
-        for (const tx of txs) {
-          const d = new Date(tx.date)
-          if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
-            if (tx.amount > 0) income += tx.amount
-            else expense += Math.abs(tx.amount)
-          }
-        }
-      }
-      setCashflow({ income, expense })
+      const all = results.flat().map((t) => ({ amount: t.amount, date: t.date }))
+      setCashflow(monthlyCashflow(all))
     } catch {
       /* egal */
     }
@@ -172,7 +165,7 @@ export function Overview() {
         <Skeleton className="h-[150px] w-full rounded-lg" />
       ) : (
         <FadeIn delay={0.05}>
-          <CashflowCard income={cashflow.income} expense={cashflow.expense} />
+          <CashflowCard income={cashflow.income} expense={cashflow.expense} monthLabel={cashflow.monthLabel} />
         </FadeIn>
       )}
 
