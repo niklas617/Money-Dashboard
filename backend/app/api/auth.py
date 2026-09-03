@@ -23,7 +23,7 @@ def get_session():
         yield session
 
 # --- GOOGLE AUTHENTIFIZIERUNG (APP & WEB) ---
-GOOGLE_CLIENT_ID = "8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "501930905580-dipthpsmg8427ect0s3pmk2r6bg23ad7.apps.googleusercontent.com"
 
 class GoogleAuthRequest(BaseModel):
     id_token: str

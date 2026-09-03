@@ -102,7 +102,7 @@ def login_page():
      
         
         # 1. HIER DEINE WEB-CLIENT-ID EINTRAGEN
-        GOOGLE_WEB_CLIENT_ID = "8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleusercontent.com"
+        GOOGLE_WEB_CLIENT_ID = "501930905580-dipthpsmg8427ect0s3pmk2r6bg23ad7.apps.googleusercontent.com"
         
         # 2. Das ist der Endpunkt in deinem FastAPI Backend, der den Token empfängt
 # dashboard.py

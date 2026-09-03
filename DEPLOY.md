@@ -49,17 +49,20 @@ Checks:
 
 ## B · Google-Login freischalten (Google Cloud Console)
 
-Der Web-Login nutzt Google Identity Services mit der bestehenden OAuth-Client-ID
-`8469072467-…`. Die Origins müssen eingetragen sein, sonst rendert der Button nicht.
+Der Web-Login nutzt Google Identity Services mit der OAuth-Client-ID
+`501930905580-dipthpsmg8427ect0s3pmk2r6bg23ad7…` (Projekt der Firebase-App `money-app-3ae83`,
+Client „Webclient 2"). Die Origins müssen eingetragen sein, sonst rendert der Button nicht.
+WICHTIG: Projekt-Nummer der Client-ID = `501930905580` – nicht das alte Projekt `8469072467`.
 
 1. [console.cloud.google.com](https://console.cloud.google.com/) → **APIs & Services → Credentials**.
-2. OAuth-2.0-Client-ID `8469072467-…` öffnen.
-3. Unter **Authorized JavaScript origins** hinzufügen:
-   - `https://dashboard.zentara-solutions.de`
-   - `https://money-app-3ae83.web.app`  *(zum Testen, bevor die Subdomain aktiv ist)*
+2. OAuth-2.0-Client-ID `501930905580-dipthpsmg8427…` öffnen.
+3. Unter **Authorized JavaScript origins** hinzufügen (exakt, ohne `/` am Ende):
+   - `https://monetra.zentara-solutions.de`
+   - `https://money-app-3ae83.web.app`
+   - `https://money-app-3ae83.firebaseapp.com`
 4. Speichern (Wirkung nach ein paar Minuten).
 
-- [ ] Beide Origins eingetragen & gespeichert
+- [ ] Alle drei Origins eingetragen & gespeichert
 
 ---
 

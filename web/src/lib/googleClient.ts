@@ -2,7 +2,7 @@
 
 export const GOOGLE_CLIENT_ID: string =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  '8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleusercontent.com'
+  '501930905580-dipthpsmg8427ect0s3pmk2r6bg23ad7.apps.googleusercontent.com'
 
 let scriptPromise: Promise<void> | null = null
 
