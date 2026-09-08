@@ -23,6 +23,15 @@ def get_session():
         yield session
 
 # --- GOOGLE AUTHENTIFIZIERUNG (APP & WEB) ---
+# Alle Client-IDs, mit denen sich UNSERE eigenen Clients bei Google anmelden.
+# Ein Google-id_token traegt im "aud"-Feld die Client-ID, fuer die es ausgestellt wurde –
+# Web-Frontend und mobile App nutzen verschiedene IDs, daher akzeptieren wir ein Set.
+GOOGLE_CLIENT_IDS = {
+    "501930905580-dipthpsmg8427ect0s3pmk2r6bg23ad7.apps.googleusercontent.com",  # Web (Webclient 2)
+    "8469072467-3bjur2tltvse1op2sslj5s0unpl0gmi4.apps.googleusercontent.com",     # Mobile serverClientId (google_sign_in)
+    "501930905580-k0kul2nle19m05vn314n16s1ir8i4s8j.apps.googleusercontent.com",   # Firebase-Web-Client (Reserve)
+}
+# Primaere Web-Client-ID (Rueckwaertskompatibilitaet, falls anderswo referenziert).
 GOOGLE_CLIENT_ID = "501930905580-dipthpsmg8427ect0s3pmk2r6bg23ad7.apps.googleusercontent.com"
 
 class GoogleAuthRequest(BaseModel):
@@ -55,7 +64,7 @@ def _verify_google_token(token: str) -> str:
         raise HTTPException(status_code=400, detail="Ungültiger Google Token")
 
     id_info = response.json()
-    if id_info.get("aud") != GOOGLE_CLIENT_ID:
+    if id_info.get("aud") not in GOOGLE_CLIENT_IDS:
         raise HTTPException(status_code=400, detail="Client-ID stimmt nicht überein")
 
     email = id_info.get("email")
