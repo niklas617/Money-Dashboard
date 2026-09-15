@@ -38,7 +38,9 @@ class TransactionUpdate(BaseModel):
     note: str
     category_id: int
     account_id: int
-    date: date
+    # datetime (nicht date!) – DB-Spalte Transaction.date und TransactionCreate sind datetime.
+    # App/Web senden "YYYY-MM-DDTHH:MM:SS"; ein reines date-Feld wuerde das mit 422 ablehnen.
+    date: datetime
 
 
 # ==========================================
