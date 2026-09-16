@@ -9,6 +9,8 @@ type Props = {
   color?: string
   colorSoft?: string
   formatValue: (v: number) => string
+  /** Optionale horizontale Markierung (z. B. eigener Einstandspreis). */
+  refLine?: { value: number; label?: string }
 }
 
 // Catmull-Rom -> kubische Bezier fuer eine weiche Kurve
@@ -37,6 +39,7 @@ export function AreaChart({
   color = '#35E0A1',
   colorSoft = '#5CEFC0',
   formatValue,
+  refLine,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -62,6 +65,8 @@ export function AreaChart({
   const geo = useMemo(() => {
     if (width === 0 || data.length === 0) return null
     const values = data.map((d) => d.value)
+    // Einstands-Linie in die Skala einbeziehen, damit sie immer sichtbar ist.
+    if (refLine && Number.isFinite(refLine.value)) values.push(refLine.value)
     let min = Math.min(...values)
     let max = Math.max(...values)
     let pad = (max - min) * 0.14
@@ -79,7 +84,7 @@ export function AreaChart({
       y: padTop + innerH - ((d.value - min) / range) * innerH,
     }))
     return { pts, min, max, innerH, stepX }
-  }, [width, data, height])
+  }, [width, data, height, refLine])
 
   if (!geo) {
     return <div ref={wrapRef} style={{ height }} className="w-full" />
@@ -87,6 +92,12 @@ export function AreaChart({
 
   const { pts } = geo
   const line = smoothPath(pts)
+
+  // Y-Position der optionalen Einstands-Linie
+  const refY =
+    refLine && Number.isFinite(refLine.value)
+      ? padTop + geo.innerH - ((refLine.value - geo.min) / (geo.max - geo.min || 1)) * geo.innerH
+      : null
   const areaPath =
     line +
     ` L ${pts[pts.length - 1].x} ${height - padBottom}` +
@@ -111,14 +122,31 @@ export function AreaChart({
   const hoverPt = hover != null ? pts[hover] : null
   const hoverData = hover != null ? data[hover] : null
 
-  // Monatswechsel-Labels
+  // Achsen-Labels: bei Mehrjahres-Spannen Jahreszahlen, sonst Monate –
+  // jeweils mit Mindestabstand ausgeduennt, damit nichts ueberlappt.
   const monthLabels: Array<{ x: number; text: string }> = []
-  let prevMonth = -1
+  const firstYear = data[0]?.date.slice(0, 4)
+  const lastYear = data[data.length - 1]?.date.slice(0, 4)
+  const multiYear = firstYear !== lastYear
+  let prevKey = ''
+  let lastLabelX = -Infinity
   data.forEach((d, i) => {
     const m = Number(d.date.slice(5, 7)) - 1
-    if (m !== prevMonth && m >= 0 && m < 12) {
+    if (m < 0 || m > 11) return
+    if (multiYear) {
+      const y = d.date.slice(0, 4)
+      if (y === prevKey) return
+      prevKey = y
+      if (pts[i].x - lastLabelX < 46) return
+      monthLabels.push({ x: pts[i].x, text: y })
+      lastLabelX = pts[i].x
+    } else {
+      const key = String(m)
+      if (key === prevKey) return
+      prevKey = key
+      if (pts[i].x - lastLabelX < 40) return
       monthLabels.push({ x: pts[i].x, text: MONTHS_SHORT_DE[m] })
-      prevMonth = m
+      lastLabelX = pts[i].x
     }
   })
 
@@ -152,6 +180,26 @@ export function AreaChart({
 
         <path d={areaPath} fill={`url(#${gradId})`} />
         <path d={line} fill="none" stroke={`url(#${lineGradId})`} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+
+        {refY != null && (
+          <g>
+            <line
+              x1={padX}
+              y1={refY}
+              x2={width - padX}
+              y2={refY}
+              stroke="#98A29D"
+              strokeWidth={1}
+              strokeDasharray="4 4"
+              opacity={0.7}
+            />
+            {refLine?.label && (
+              <text x={width - padX} y={refY - 4} textAnchor="end" fontSize="9.5" fontWeight="700" fill="#98A29D">
+                {refLine.label}
+              </text>
+            )}
+          </g>
+        )}
 
         {monthLabels.map((m, i) => (
           <text

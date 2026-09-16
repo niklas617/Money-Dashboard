@@ -110,6 +110,62 @@ export function formatPrice(value: number | null | undefined): string {
   }).format(value)
 }
 
+/** Gewicht in Gramm menschlich formatieren: 1250 -> "1,25 kg", 41.06 -> "41,06 g" */
+export function formatGrams(grams: number | null | undefined): string {
+  if (grams == null || Number.isNaN(grams)) return '–'
+  if (Math.abs(grams) >= 1000) {
+    return `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(grams / 1000)} kg`
+  }
+  return `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(grams)} g`
+}
+
+/** Kurs pro Gramm: passende Nachkommastellen (Gold ~€120/g, Kupfer ~€0,01/g) */
+export function formatPricePerGram(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '–'
+  const abs = Math.abs(value)
+  let digits = 2
+  if (abs > 0 && abs < 1) digits = 4
+  if (abs > 0 && abs < 0.1) digits = 5
+  return `${new Intl.NumberFormat('de-DE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: digits,
+  }).format(value)} €/g`
+}
+
+/** ISO-Zeitstempel -> "16.09.2026, 14:32" (fuer „Stand"-Anzeige) */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return '–'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 16)
+  return d.toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Haltedauer seit einem Datum, grob: "1 J 3 M", "5 Mon.", "12 Tage" */
+export function formatHoldingDuration(iso: string | null | undefined): string {
+  if (!iso) return '–'
+  const start = new Date(iso)
+  if (Number.isNaN(start.getTime())) return '–'
+  const now = new Date()
+  let months =
+    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
+  if (now.getDate() < start.getDate()) months -= 1
+  if (months < 1) {
+    const days = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 86400000))
+    return days === 1 ? '1 Tag' : `${days} Tage`
+  }
+  const years = Math.floor(months / 12)
+  const rest = months % 12
+  if (years === 0) return rest === 1 ? '1 Monat' : `${rest} Monate`
+  if (rest === 0) return years === 1 ? '1 Jahr' : `${years} Jahre`
+  return `${years} J ${rest} M`
+}
+
 /** Stueckzahl: bis zu 6 Nachkommastellen, aber ohne unnoetige Nullen */
 export function formatQuantity(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '–'

@@ -1,6 +1,6 @@
 import { ChevronRight, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { TOOLS } from '../components/AppShell'
+import { ASSETS, TOOLS } from '../components/AppShell'
 import { Card, FadeIn } from '../components/ui'
 import { useAuth } from '../lib/auth'
 
@@ -8,7 +8,7 @@ export function More() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
-  const items = [...TOOLS, { to: '/einstellungen', label: 'Einstellungen', icon: SettingsIcon }]
+  const items = [ASSETS, ...TOOLS, { to: '/einstellungen', label: 'Einstellungen', icon: SettingsIcon }]
 
   return (
     <div className="flex flex-col gap-6">

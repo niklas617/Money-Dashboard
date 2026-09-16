@@ -5,6 +5,8 @@ import { Login } from './pages/Login'
 import { Overview } from './pages/Overview'
 import { Portfolio } from './pages/Portfolio'
 import { Trades } from './pages/Trades'
+import { Physical } from './pages/Physical'
+import { PhysicalDetail } from './pages/PhysicalDetail'
 import { Accounts } from './pages/Accounts'
 import { Buchungen } from './pages/Buchungen'
 import { Budgets } from './pages/Budgets'
@@ -31,6 +33,8 @@ export default function App() {
         <Route path="/" element={<Overview />} />
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/portfolio/trades" element={<Trades />} />
+        <Route path="/sachwerte" element={<Physical />} />
+        <Route path="/sachwerte/:metal" element={<PhysicalDetail />} />
         <Route path="/konten" element={<Accounts />} />
         <Route path="/konten/buchungen" element={<Buchungen />} />
         <Route path="/budgets" element={<Budgets />} />

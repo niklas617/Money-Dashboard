@@ -197,6 +197,68 @@ export type PriceAlert = {
   user_id?: number
 }
 export type Category = { id: number; name: string; user_id?: number }
+
+// ---------- Physische Werte (Edelmetalle) ----------
+export type MetalOption = { symbol: string; name: string; default_unit: string }
+
+export type PhysicalPosition = {
+  id: number
+  quantity: number
+  unit: string
+  fineness: number
+  fine_grams: number
+  gross_grams: number
+  purchase_price_eur: number
+  price_per_unit_paid: number
+  cost_per_fine_gram: number
+  purchase_date: string | null
+  storage_location: string | null
+  note: string | null
+}
+
+export type MetalHolding = {
+  metal: string
+  name: string
+  asset_class: string
+  gross_grams: number
+  fine_grams: number
+  total_cost: number
+  current_value: number
+  unrealized_pnl: number
+  unrealized_pnl_pct: number
+  price_per_gram: number
+  price_per_ounce: number
+  price_timestamp: string | null
+  price_stale: boolean
+  has_market_price: boolean
+  avg_cost_per_fine_gram: number
+  earliest_purchase_date: string | null
+  position_count: number
+  allocation_pct: number
+  positions: PhysicalPosition[]
+}
+
+export type PhysicalSummary = {
+  metals: MetalHolding[]
+  total_value: number
+  total_cost: number
+  total_unrealized_pnl: number
+  total_unrealized_pnl_pct: number
+}
+
+export type PhysicalPricePoint = { date: string; value: number }
+
+export type PhysicalAssetInput = {
+  metal: string
+  name: string
+  quantity: number
+  unit: string
+  fineness: number
+  purchase_price_eur: number
+  purchase_date: string
+  storage_location?: string | null
+  note?: string | null
+}
 export type Transaction = {
   id: number
   amount: number
@@ -250,6 +312,17 @@ export const api = {
     request<SearchResult[]>(`/portfolio/search${qs({ query })}`, { signal }),
   lookupAsset: (symbol: string, asset_type: string, coin_id?: string | null) =>
     request<LookupResult>(`/portfolio/lookup${qs({ symbol, asset_type, coin_id: coin_id ?? undefined })}`),
+
+  // Physische Werte (Edelmetalle)
+  physicalSummary: (signal?: AbortSignal) => request<PhysicalSummary>('/physical/summary', { signal }),
+  physicalPriceHistory: (metal: string, range: string, signal?: AbortSignal) =>
+    request<PhysicalPricePoint[]>(`/physical/price-history${qs({ metal, range })}`, { signal }),
+  getMetals: (signal?: AbortSignal) => request<MetalOption[]>('/physical/metals', { signal }),
+  createPhysicalAsset: (payload: PhysicalAssetInput) =>
+    request<PhysicalPosition>('/physical/', { method: 'POST', json: payload }),
+  updatePhysicalAsset: (id: number, payload: Partial<PhysicalAssetInput>) =>
+    request<PhysicalPosition>(`/physical/${id}`, { method: 'PUT', json: payload }),
+  deletePhysicalAsset: (id: number) => request(`/physical/${id}`, { method: 'DELETE' }),
 
   // Accounts / Categories
   getAccounts: (signal?: AbortSignal) => request<Account[]>('/accounts/', { signal }),

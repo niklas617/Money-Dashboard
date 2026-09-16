@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import {
   Bell,
+  Coins,
   Download,
   LayoutDashboard,
   LayoutGrid,
@@ -24,6 +25,13 @@ const PRIMARY: NavItem[] = [
   { to: '/portfolio', label: 'Portfolio', icon: LineChart },
   { to: '/konten', label: 'Konten', icon: Wallet },
 ]
+
+// Eigener Hauptpunkt „Physische Werte" – in der Sidebar neben Portfolio,
+// auf Mobile ueber den „Mehr"-Hub erreichbar (Bottom-Leiste bleibt bei 3 + Mehr).
+export const ASSETS: NavItem = { to: '/sachwerte', label: 'Physische Werte', icon: Coins }
+
+// Sidebar-Hauptbereich (Desktop): Übersicht · Portfolio · Physische Werte · Konten
+const SIDEBAR_MAIN: NavItem[] = [PRIMARY[0], PRIMARY[1], ASSETS, PRIMARY[2]]
 
 // Werkzeuge (Sidebar-Sektion / „Mehr"-Hub auf Mobile)
 export const TOOLS: NavItem[] = [
@@ -62,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="mt-9 flex flex-1 flex-col gap-1.5">
-          {PRIMARY.map((item) => (
+          {SIDEBAR_MAIN.map((item) => (
             <SidebarLink key={item.to} item={item} />
           ))}
 
@@ -160,7 +168,9 @@ function BottomLink({ item }: { item: NavItem }) {
   // „Mehr" auch für /budgets, /einstellungen als aktiv markieren
   const location = useLocation()
   const extraActive =
-    to === '/mehr' && ['/budgets', '/alerts', '/export', '/einstellungen', '/mehr'].includes(location.pathname)
+    to === '/mehr' &&
+    (['/budgets', '/alerts', '/export', '/einstellungen', '/mehr'].includes(location.pathname) ||
+      location.pathname.startsWith('/sachwerte'))
   return (
     <NavLink to={to} end={to === '/'} className="flex flex-1 flex-col items-center gap-1 py-2.5">
       {({ isActive }) => {
