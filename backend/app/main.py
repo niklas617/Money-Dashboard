@@ -13,6 +13,7 @@ from backend.app.api import reports  # Erst aktivieren, wenn reports.py fertig i
 from backend.app.api import portfolio
 from backend.app.api import budgets
 from backend.app.api import alerts
+from backend.app.api import physical
 
 app = FastAPI(title=settings.app_name)
 
@@ -44,6 +45,7 @@ app.include_router(transactions.router, prefix="/transactions", tags=["Transacti
 app.include_router(portfolio.router, prefix="/portfolio", tags=["Portfolio"])
 app.include_router(budgets.router, prefix="/budgets", tags=["Budgets"])
 app.include_router(alerts.router, prefix="/alerts", tags=["Alerts"])
+app.include_router(physical.router, prefix="/physical", tags=["Physical"])
 
 @app.get("/health", tags=["System"])
 def health():

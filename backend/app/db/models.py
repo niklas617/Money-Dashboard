@@ -121,3 +121,48 @@ class PriceAlertCreate(SQLModel):
     target_price: float
     above: bool = True
 
+
+# --- PHYSISCHE WERTE / SACHWERTE (Edelmetalle etc.) ---
+# Eine Zeile = EINE Kauf-Position. In der Uebersicht werden Positionen pro Metall
+# aggregiert; auf der Detailseite einzeln gelistet. `asset_class` haelt das Modell
+# offen fuer spaetere Sachwerte (z. B. "cash", "collectible") ohne Schema-Umbau.
+
+class PhysicalAsset(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    asset_class: str = Field(default="metal")   # "metal" | (spaeter: "cash","collectible")
+    metal: str                                  # "XAU","XAG","XPT","XPD","XCU" oder Freitext
+    name: str                                   # Anzeigename (Gold, Silber, …)
+    quantity: float                             # Menge (in `unit`)
+    unit: str = Field(default="g")              # "g" | "kg" | "oz" (Feinunze)
+    fineness: int = Field(default=999)          # Feingehalt in Promille (999 / 925 / 585)
+    purchase_price_eur: float = Field(default=0.0)  # Gesamt-Kaufpreis dieser Position in EUR
+    purchase_date: datetime = Field(default_factory=datetime.utcnow)
+    storage_location: Optional[str] = Field(default=None)  # Lagerort (optional)
+    note: Optional[str] = Field(default=None)              # Notiz (optional)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
+
+
+class PhysicalAssetCreate(SQLModel):
+    metal: str
+    name: str
+    quantity: float
+    unit: str = "g"
+    fineness: int = 999
+    purchase_price_eur: float = 0.0
+    purchase_date: datetime = Field(default_factory=datetime.utcnow)
+    storage_location: Optional[str] = None
+    note: Optional[str] = None
+    asset_class: str = "metal"
+
+
+class PhysicalAssetUpdate(SQLModel):
+    metal: Optional[str] = None
+    name: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    fineness: Optional[int] = None
+    purchase_price_eur: Optional[float] = None
+    purchase_date: Optional[datetime] = None
+    storage_location: Optional[str] = None
+    note: Optional[str] = None
+
