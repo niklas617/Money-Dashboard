@@ -134,7 +134,9 @@ class PhysicalAsset(SQLModel, table=True):
     name: str                                   # Anzeigename (Gold, Silber, …)
     quantity: float                             # Menge (in `unit`)
     unit: str = Field(default="g")              # "g" | "kg" | "oz" (Feinunze)
-    fineness: int = Field(default=999)          # Feingehalt in Promille (999 / 925 / 585)
+    # Feingehalt in Promille – als Dezimalzahl, damit 4-stellige Feinheiten wie
+    # 999,9 ‰ (9999er, z. B. Maple Leaf) verlustfrei speicherbar sind.
+    fineness: float = Field(default=999.0)
     purchase_price_eur: float = Field(default=0.0)  # Gesamt-Kaufpreis dieser Position in EUR
     purchase_date: datetime = Field(default_factory=datetime.utcnow)
     storage_location: Optional[str] = Field(default=None)  # Lagerort (optional)
@@ -147,7 +149,7 @@ class PhysicalAssetCreate(SQLModel):
     name: str
     quantity: float
     unit: str = "g"
-    fineness: int = 999
+    fineness: float = 999.0
     purchase_price_eur: float = 0.0
     purchase_date: datetime = Field(default_factory=datetime.utcnow)
     storage_location: Optional[str] = None
@@ -160,7 +162,7 @@ class PhysicalAssetUpdate(SQLModel):
     name: Optional[str] = None
     quantity: Optional[float] = None
     unit: Optional[str] = None
-    fineness: Optional[int] = None
+    fineness: Optional[float] = None
     purchase_price_eur: Optional[float] = None
     purchase_date: Optional[datetime] = None
     storage_location: Optional[str] = None

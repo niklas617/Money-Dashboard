@@ -76,6 +76,18 @@ def _run_light_migrations() -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE account ADD COLUMN opening_balance FLOAT DEFAULT 0"))
 
+    # physicalasset.fineness: von INTEGER auf FLOAT/DOUBLE anheben, damit 4-stellige
+    # Feinheiten wie 999,9 ‰ verlustfrei speicherbar sind. Nur auf Postgres noetig
+    # (SQLite ist dynamisch typisiert). Idempotent: nur wenn Spalte noch integer ist.
+    if "physicalasset" in tables and "postgresql" in str(engine.url):
+        for col in insp.get_columns("physicalasset"):
+            if col["name"] == "fineness" and "int" in str(col["type"]).lower():
+                with engine.begin() as conn:
+                    conn.execute(text(
+                        "ALTER TABLE physicalasset ALTER COLUMN fineness TYPE DOUBLE PRECISION"
+                    ))
+                break
+
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)

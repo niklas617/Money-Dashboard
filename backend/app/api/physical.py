@@ -10,7 +10,7 @@ aus portfolio.py). Zielwaehrung ist immer EUR; intern rechnen wir in EUR pro Gra
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import yfinance as yf
@@ -96,38 +96,69 @@ def gross_grams_of(quantity: float, unit: str) -> float:
 # KURSE (EUR pro Gramm) – gleiche Quelle wie Aktien
 # ==========================================
 
+def _empty_price() -> dict:
+    return {
+        "price_per_gram": 0.0,
+        "price_per_ounce": 0.0,
+        "quote_time": None,       # echte Ermittlungszeit (UTC ISO) oder None
+        "market_state": None,     # "REGULAR" / "CLOSED" / "PRE" / "POST"
+        "is_live": False,         # True = Live-Kurs, False = Schlusskurs-Fallback
+        "has_market_price": False,
+    }
+
+
 def _live_price_eur_per_gram(metal: str) -> dict:
     """Aktueller Kurs eines Metalls in EUR/Gramm.
 
-    Liefert zusaetzlich EUR/Feinunze, einen Zeitstempel und ein `stale`-Flag.
-    Faellt der Live-Kurs aus, wird der letzte bekannte Schlusskurs (mit dessen
-    Datum) verwendet – statt Fehler oder 0 €.
+    Liefert zusaetzlich EUR/Feinunze, die *tatsaechliche* Quote-Zeit der Boerse
+    (regularMarketTime, nicht die Abrufzeit), den Marktstatus und ein `is_live`-
+    Flag. Faellt der Live-Kurs aus, wird der letzte Schlusskurs mit dessen Datum
+    genutzt (is_live=False) – statt Fehler, 0 € oder erfundenem Zeitstempel.
     """
     conf = METALS.get(metal)
     if not conf:
-        return {"price_per_gram": 0.0, "price_per_ounce": 0.0, "timestamp": None, "stale": True}
+        return _empty_price()
 
     quote_grams = conf["quote_grams"]
     eurusd = _get_eurusd_rate()
+    t = yf.Ticker(conf["ticker"])
 
-    # 1) Live-Kurs
+    usd = 0.0
+    quote_time: Optional[str] = None
+    market_state: Optional[str] = None
+
+    # 1) Quote-Zeit + Marktstatus (best effort ueber .info) und Preis
     try:
-        fi = yf.Ticker(conf["ticker"]).fast_info
-        usd = float(getattr(fi, "last_price", None) or 0.0)
-        if usd > 0:
-            ppg = (usd / eurusd) / quote_grams
-            return {
-                "price_per_gram": ppg,
-                "price_per_ounce": ppg * GRAMS_PER_TROY_OUNCE,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "stale": False,
-            }
+        info = t.info
+        usd = float(info.get("regularMarketPrice") or 0.0)
+        rmt = info.get("regularMarketTime")
+        if isinstance(rmt, (int, float)) and rmt > 0:
+            quote_time = datetime.fromtimestamp(rmt, tz=timezone.utc).isoformat()
+        market_state = info.get("marketState")
     except Exception:
         pass
 
-    # 2) Fallback: letzter bekannter Schlusskurs (mit Zeitstempel)
+    # Preis notfalls ueber das schnelle fast_info nachziehen
+    if usd <= 0:
+        try:
+            usd = float(getattr(t.fast_info, "last_price", None) or 0.0)
+        except Exception:
+            pass
+
+    if usd > 0:
+        ppg = (usd / eurusd) / quote_grams
+        return {
+            "price_per_gram": ppg,
+            "price_per_ounce": ppg * GRAMS_PER_TROY_OUNCE,
+            "quote_time": quote_time,
+            "market_state": market_state,
+            "is_live": True,
+            "has_market_price": True,
+        }
+
+    # 2) Fallback: letzter bekannter Schlusskurs (klar als Schlusskurs markiert)
     try:
-        hist = yf.Ticker(conf["ticker"]).history(period="7d")
+        hist = t.history(period="7d")
         if not hist.empty:
             ts = hist.index[-1]
             usd = float(hist["Close"].iloc[-1])
@@ -136,13 +167,15 @@ def _live_price_eur_per_gram(metal: str) -> dict:
                 return {
                     "price_per_gram": ppg,
                     "price_per_ounce": ppg * GRAMS_PER_TROY_OUNCE,
-                    "timestamp": ts.to_pydatetime().isoformat(),
-                    "stale": True,
+                    "quote_time": ts.to_pydatetime().astimezone(timezone.utc).isoformat(),
+                    "market_state": "CLOSED",
+                    "is_live": False,
+                    "has_market_price": True,
                 }
     except Exception:
         pass
 
-    return {"price_per_gram": 0.0, "price_per_ounce": 0.0, "timestamp": None, "stale": True}
+    return _empty_price()
 
 
 def fetch_metal_prices(metals: List[str]) -> Dict[str, dict]:
@@ -221,15 +254,17 @@ def compute_physical_summary(assets: List[PhysicalAsset], price_map: Dict[str, d
         if ppg > 0:
             price_per_gram = ppg
             price_per_ounce = float(pinfo.get("price_per_ounce") or (ppg * GRAMS_PER_TROY_OUNCE))
-            price_timestamp = pinfo.get("timestamp")
-            price_stale = bool(pinfo.get("stale", False))
+            price_time = pinfo.get("quote_time")
+            price_is_live = bool(pinfo.get("is_live", False))
+            price_market_state = pinfo.get("market_state")
             has_market_price = True
         else:
-            # Kein Marktkurs -> Einstand als Wert (P&L 0), dezent als „kein Live-Kurs".
+            # Kein Marktkurs -> Einstand als Wert (P&L 0), kein Zeitstempel.
             price_per_gram = avg_cost_per_fine_gram
             price_per_ounce = avg_cost_per_fine_gram * GRAMS_PER_TROY_OUNCE
-            price_timestamp = pinfo.get("timestamp")
-            price_stale = True
+            price_time = None
+            price_is_live = False
+            price_market_state = None
             has_market_price = False
 
         current_value = fine * price_per_gram
@@ -248,8 +283,9 @@ def compute_physical_summary(assets: List[PhysicalAsset], price_map: Dict[str, d
             "unrealized_pnl_pct": round(pnl_pct, 2),
             "price_per_gram": round(price_per_gram, 4),
             "price_per_ounce": round(price_per_ounce, 2),
-            "price_timestamp": price_timestamp,
-            "price_stale": price_stale,
+            "price_time": price_time,
+            "price_is_live": price_is_live,
+            "price_market_state": price_market_state,
             "has_market_price": has_market_price,
             "avg_cost_per_fine_gram": round(avg_cost_per_fine_gram, 4),
             "earliest_purchase_date": g["earliest_date"],
@@ -309,6 +345,29 @@ def list_metals(current_user: User = Depends(get_current_user)):
         {"symbol": k, "name": v["name"], "default_unit": v["default_unit"]}
         for k, v in METALS.items()
     ]
+
+
+# Vorlagen fuer gaengige Anlagemuenzen/-barren. Werte sind so gewaehlt, dass die
+# FEINmenge stimmt (22-kt-Muenzen wie Kruegerrand/Eagle enthalten 1 oz FEINgold
+# bei 916,7 ‰ -> Bruttogewicht ~33,93 g). Nach Auswahl im Formular frei aenderbar.
+COIN_TEMPLATES = [
+    {"id": "maple_gold",     "name": "Maple Leaf – Gold (1 oz)",            "metal": "XAU", "unit": "oz", "quantity": 1.0,  "fineness": 999.9},
+    {"id": "phil_gold",      "name": "Wiener Philharmoniker – Gold (1 oz)", "metal": "XAU", "unit": "oz", "quantity": 1.0,  "fineness": 999.9},
+    {"id": "britannia_gold", "name": "Britannia – Gold (1 oz)",             "metal": "XAU", "unit": "oz", "quantity": 1.0,  "fineness": 999.9},
+    {"id": "kruger",         "name": "Krügerrand (1 oz Feingold)",          "metal": "XAU", "unit": "g",  "quantity": 33.93, "fineness": 916.7},
+    {"id": "eagle_gold",     "name": "American Eagle – Gold (1 oz Feingold)","metal": "XAU", "unit": "g",  "quantity": 33.93, "fineness": 916.7},
+    {"id": "bar_gold_100g",  "name": "Goldbarren 100 g",                    "metal": "XAU", "unit": "g",  "quantity": 100.0, "fineness": 999.9},
+    {"id": "bar_gold_1kg",   "name": "Goldbarren 1 kg",                     "metal": "XAU", "unit": "kg", "quantity": 1.0,   "fineness": 999.9},
+    {"id": "maple_silver",   "name": "Maple Leaf – Silber (1 oz)",          "metal": "XAG", "unit": "oz", "quantity": 1.0,  "fineness": 999.9},
+    {"id": "phil_silver",    "name": "Wiener Philharmoniker – Silber (1 oz)","metal": "XAG", "unit": "oz", "quantity": 1.0,  "fineness": 999.0},
+    {"id": "bar_silver_1kg", "name": "Silberbarren 1 kg",                   "metal": "XAG", "unit": "kg", "quantity": 1.0,   "fineness": 999.0},
+]
+
+
+@router.get("/templates")
+def list_templates(current_user: User = Depends(get_current_user)):
+    """Vorlagen fuer gaengige Anlagemuenzen/-barren (vorbefuellen, dann aenderbar)."""
+    return COIN_TEMPLATES
 
 
 @router.get("/summary")
