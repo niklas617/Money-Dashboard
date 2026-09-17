@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from backend.app.api.auth import get_current_user
-from backend.app.api.portfolio import _get_eurusd_rate, _fetch_eurusd_history
+from backend.app.api.portfolio import _get_eurusd_rate, _fetch_eurusd_history, _to_date
 from backend.app.db.database import engine
 from backend.app.db.models import (
     PhysicalAsset,
@@ -181,6 +181,94 @@ def _live_price_eur_per_gram(metal: str) -> dict:
 def fetch_metal_prices(metals: List[str]) -> Dict[str, dict]:
     """Kurse (EUR/Gramm etc.) fuer eine Liste bekannter Metalle."""
     return {m: _live_price_eur_per_gram(m) for m in set(metals) if m in METALS}
+
+
+def fetch_metal_price_history(metals: List[str], start_date) -> Dict[str, Dict[str, float]]:
+    """Historische Tages-Kurse (EUR/Gramm) je Metall ab start_date.
+
+    USD/Notierungseinheit -> EUR/Gramm mit historischem EUR/USD (Forward-Fill).
+    Nur bekannte Metalle (mit Ticker); Rest wird uebersprungen.
+    """
+    out: Dict[str, Dict[str, float]] = {}
+    start_str = _to_date(start_date).strftime("%Y-%m-%d")
+    end_str = datetime.utcnow().strftime("%Y-%m-%d")
+    eurusd_hist = _fetch_eurusd_history(start_str, end_str)
+    fallback = _get_eurusd_rate()
+
+    for m in set(metals):
+        conf = METALS.get(m)
+        if not conf:
+            continue
+        try:
+            hist = yf.Ticker(conf["ticker"]).history(start=start_str, end=end_str)
+        except Exception:
+            continue
+        if hist.empty:
+            continue
+        qg = conf["quote_grams"]
+        series: Dict[str, float] = {}
+        last_rate = fallback
+        for ts, usd in hist["Close"].items():
+            ds = ts.strftime("%Y-%m-%d")
+            r = eurusd_hist.get(ds)
+            if r and r > 0:
+                last_rate = r
+            try:
+                val = (float(usd) / last_rate) / qg
+                if val > 0:
+                    series[ds] = val
+            except Exception:
+                pass
+        out[m] = series
+    return out
+
+
+def metal_value_history(assets: List[PhysicalAsset]) -> Dict[str, float]:
+    """Tageswert (EUR) aller physischen Positionen – fuer die Gesamtvermoegens-Kurve.
+
+    - Bekannte Metalle: Feinmenge (ab Kaufdatum gehalten) * historischer EUR/g-Kurs
+      (Forward-Fill), analog zur Portfolio-Historie.
+    - Freitext-Metalle ohne Marktkurs: mit dem Kaufpreis ab Kaufdatum bewertet.
+    Rueckgabe: {YYYY-MM-DD: Gesamtwert}. Leeres Dict, wenn keine (datierten) Positionen.
+    """
+    import pandas as pd
+
+    dated = [a for a in assets if a.purchase_date is not None]
+    if not dated:
+        return {}
+
+    known = [a for a in dated if a.metal in METALS]
+    custom = [a for a in dated if a.metal not in METALS]
+
+    start = min(_to_date(a.purchase_date) for a in dated)
+    today = datetime.utcnow().date()
+
+    price_hist = fetch_metal_price_history([a.metal for a in known], start) if known else {}
+    last_price: Dict[str, float] = {}
+    result: Dict[str, float] = {}
+
+    for dt in pd.date_range(start=start, end=today, freq="D"):
+        d = dt.date()
+        ds = d.strftime("%Y-%m-%d")
+        val = 0.0
+
+        held: Dict[str, float] = {}
+        for a in known:
+            if _to_date(a.purchase_date) <= d:
+                held[a.metal] = held.get(a.metal, 0.0) + fine_grams_of(a.quantity, a.unit, a.fineness)
+        for m, fg in held.items():
+            p = price_hist.get(m, {}).get(ds)
+            if p and p > 0:
+                last_price[m] = p
+            val += fg * last_price.get(m, 0.0)
+
+        for a in custom:
+            if _to_date(a.purchase_date) <= d:
+                val += (a.purchase_price_eur or 0.0)
+
+        result[ds] = val
+
+    return result
 
 
 # ==========================================

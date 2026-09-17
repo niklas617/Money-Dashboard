@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from backend.app.api.auth import get_current_user
 from backend.app.db.database import engine
-from backend.app.db.models import Trade, TradeCreate, User, Transaction, Account
+from backend.app.db.models import Trade, TradeCreate, User, Transaction, Account, PhysicalAsset
 
 router = APIRouter()
 
@@ -1039,37 +1039,54 @@ def get_net_worth_history(
 
             fiat_history[date_str] = fiat_balance
 
-    # 3. Beide Zeitreihen zusammenführen
-    all_dates = sorted(list(set(list(portfolio_history.keys()) + list(fiat_history.keys()))))
+    # 2b. Physische Werte (Edelmetalle) – NUR in die Gesamtsumme einrechnen,
+    # NICHT ins Portfolio (Aktien/Krypto). Lazy-Import vermeidet Zirkularimport.
+    metal_history = {}
+    try:
+        from backend.app.api.physical import metal_value_history
+        metal_assets = session.exec(
+            select(PhysicalAsset).where(PhysicalAsset.user_id == current_user.id)
+        ).all()
+        metal_history = metal_value_history(metal_assets)
+    except Exception:
+        metal_history = {}
 
-    # Sonderfall: weder Trades noch Buchungen -> es gibt keine Datumsreihe. Ein
-    # frisch abgeglichenes Konto (nur opening_balance, noch keine Buchung) wuerde
-    # sonst komplett verschwinden und die Uebersicht 0 anzeigen. Daher mindestens
-    # einen "Heute"-Punkt mit dem Anfangssaldo liefern.
+    # 3. Zeitreihen zusammenführen (Portfolio + Fiat + Metalle)
+    all_dates = sorted(set(
+        list(portfolio_history.keys()) + list(fiat_history.keys()) + list(metal_history.keys())
+    ))
+
+    # Sonderfall: keine datierte Reihe (weder Trades/Buchungen/Metalle) -> ein
+    # frisch abgeglichenes Konto (nur opening_balance) trotzdem als "Heute"-Punkt.
     if not all_dates and total_opening != 0.0:
         today_str = datetime.utcnow().date().strftime("%Y-%m-%d")
         return [{
             "date": today_str,
             "portfolio_value": 0.0,
             "fiat_value": round(total_opening, 2),
+            "metal_value": 0.0,
             "total_value": round(total_opening, 2),
         }]
 
     result = []
     last_port = 0.0
     last_fiat = total_opening  # ohne Buchungen bleibt der Anfangssaldo stehen
+    last_metal = 0.0
 
     for d in all_dates:
         if d in portfolio_history:
             last_port = portfolio_history[d]
         if d in fiat_history:
             last_fiat = fiat_history[d]
+        if d in metal_history:
+            last_metal = metal_history[d]
 
         result.append({
             "date": d,
             "portfolio_value": round(last_port, 2),
             "fiat_value": round(last_fiat, 2),
-            "total_value": round(last_port + last_fiat, 2)
+            "metal_value": round(last_metal, 2),
+            "total_value": round(last_port + last_fiat + last_metal, 2),
         })
 
     return result
