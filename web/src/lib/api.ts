@@ -228,8 +228,9 @@ export type MetalHolding = {
   unrealized_pnl_pct: number
   price_per_gram: number
   price_per_ounce: number
-  price_timestamp: string | null
-  price_stale: boolean
+  price_time: string | null
+  price_is_live: boolean
+  price_market_state: string | null
   has_market_price: boolean
   avg_cost_per_fine_gram: number
   earliest_purchase_date: string | null
@@ -258,6 +259,15 @@ export type PhysicalAssetInput = {
   purchase_date: string
   storage_location?: string | null
   note?: string | null
+}
+
+export type PhysicalTemplate = {
+  id: string
+  name: string
+  metal: string
+  unit: string
+  quantity: number
+  fineness: number
 }
 export type Transaction = {
   id: number
@@ -318,6 +328,8 @@ export const api = {
   physicalPriceHistory: (metal: string, range: string, signal?: AbortSignal) =>
     request<PhysicalPricePoint[]>(`/physical/price-history${qs({ metal, range })}`, { signal }),
   getMetals: (signal?: AbortSignal) => request<MetalOption[]>('/physical/metals', { signal }),
+  getPhysicalTemplates: (signal?: AbortSignal) =>
+    request<PhysicalTemplate[]>('/physical/templates', { signal }),
   createPhysicalAsset: (payload: PhysicalAssetInput) =>
     request<PhysicalPosition>('/physical/', { method: 'POST', json: payload }),
   updatePhysicalAsset: (id: number, payload: Partial<PhysicalAssetInput>) =>

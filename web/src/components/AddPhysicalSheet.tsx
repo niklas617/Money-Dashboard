@@ -1,8 +1,12 @@
 import { Check } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api, type MetalOption, type PhysicalAssetInput } from '../lib/api'
+import { api, type MetalOption, type PhysicalAssetInput, type PhysicalTemplate } from '../lib/api'
 import { cn } from '../lib/cn'
 import { formatEUR, parseAmount, parseDecimal } from '../lib/format'
+
+// Zahl -> deutsche Eingabe-Zeichenkette (Komma), ohne unnötige Nullen.
+const deInput = (n: number) =>
+  new Intl.NumberFormat('de-DE', { maximumFractionDigits: 6, useGrouping: false }).format(n)
 import { Modal } from './Modal'
 import { Spinner } from './ui'
 import { useToast } from './Toast'
@@ -25,8 +29,9 @@ const UNITS: { value: string; label: string }[] = [
   { value: 'kg', label: 'kg' },
   { value: 'oz', label: 'oz' },
 ]
-const FINENESS_PRESETS = [999, 925, 585]
+const FINENESS_PRESETS = [999.9, 999, 925, 585]
 const CUSTOM = '__custom__'
+const fineLabel = (f: number) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(f)
 
 export function AddPhysicalSheet({
   open,
@@ -41,6 +46,7 @@ export function AddPhysicalSheet({
 }) {
   const toast = useToast()
   const [metals, setMetals] = useState<MetalOption[]>([])
+  const [templates, setTemplates] = useState<PhysicalTemplate[]>([])
 
   const [metalSel, setMetalSel] = useState<string>('XAU')
   const [customName, setCustomName] = useState('')
@@ -54,11 +60,24 @@ export function AddPhysicalSheet({
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Metall-Liste laden
+  // Metall-Liste + Vorlagen laden
   useEffect(() => {
     if (!open) return
     api.getMetals().then(setMetals).catch(() => setMetals([]))
+    api.getPhysicalTemplates().then(setTemplates).catch(() => setTemplates([]))
   }, [open])
+
+  // Vorlage anwenden: Metall, Einheit, Menge und Feingehalt vorbefüllen (danach frei änderbar)
+  const applyTemplate = (id: string) => {
+    const t = templates.find((x) => x.id === id)
+    if (!t) return
+    const known = ['XAU', 'XAG', 'XPT', 'XPD', 'XCU'].includes(t.metal)
+    setMetalSel(known ? t.metal : CUSTOM)
+    if (!known) setCustomName(t.metal)
+    setUnit(t.unit)
+    setQuantity(deInput(t.quantity))
+    setFineness(deInput(t.fineness))
+  }
 
   // Formular initialisieren (neu vs. bearbeiten)
   useEffect(() => {
@@ -67,9 +86,9 @@ export function AddPhysicalSheet({
       const known = ['XAU', 'XAG', 'XPT', 'XPD', 'XCU'].includes(edit.metal)
       setMetalSel(known ? edit.metal : CUSTOM)
       setCustomName(known ? '' : edit.name || edit.metal)
-      setQuantity(String(edit.quantity))
+      setQuantity(deInput(edit.quantity))
       setUnit(edit.unit)
-      setFineness(String(edit.fineness))
+      setFineness(deInput(edit.fineness))
       setPriceMode('total')
       setPrice(String(edit.purchase_price_eur))
       setDate((edit.purchase_date || new Date().toISOString()).slice(0, 10))
@@ -105,12 +124,12 @@ export function AddPhysicalSheet({
       ? customName.trim()
       : metals.find((m) => m.symbol === metalSel)?.name || metalSel
     const qty = parseDecimal(quantity)
-    const fine = parseInt(fineness, 10)
+    const fine = parseDecimal(fineness)
     const priceVal = parseAmount(price)
 
     if (isCustom && !customName.trim()) return toast.error('Bitte einen Namen für das Metall eingeben.')
     if (!qty || qty <= 0) return toast.error('Bitte eine gültige Menge (> 0) eingeben.')
-    if (!fine || fine <= 0 || fine > 1000) return toast.error('Feingehalt muss zwischen 1 und 1000 liegen.')
+    if (!fine || fine <= 0 || fine > 1000) return toast.error('Feingehalt muss zwischen 1 und 1000 liegen (z. B. 999,9).')
     if (Number.isNaN(priceVal) || priceVal < 0) return toast.error('Bitte einen gültigen Kaufpreis eingeben.')
     if (date && date > new Date().toISOString().slice(0, 10))
       return toast.error('Das Kaufdatum darf nicht in der Zukunft liegen.')
@@ -150,6 +169,29 @@ export function AddPhysicalSheet({
   return (
     <Modal open={open} onClose={onClose} title={edit ? 'Position bearbeiten' : 'Physische Position erfassen'}>
       <div className="flex flex-col gap-4">
+        {/* Vorlage (optional) – füllt Metall, Einheit, Menge, Feingehalt vor */}
+        {!edit && templates.length > 0 && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-semibold text-text-secondary">
+              Vorlage <span className="font-normal text-text-muted">(optional)</span>
+            </span>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) applyTemplate(e.target.value)
+              }}
+              className="input [color-scheme:dark]"
+            >
+              <option value="">Münze / Barren wählen …</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {/* Metall */}
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] font-semibold text-text-secondary">Metall</span>
@@ -217,27 +259,27 @@ export function AddPhysicalSheet({
         {/* Feingehalt */}
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] font-semibold text-text-secondary">Feingehalt (‰)</span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {FINENESS_PRESETS.map((f) => (
               <button
                 key={f}
-                onClick={() => setFineness(String(f))}
+                onClick={() => setFineness(deInput(f))}
                 className={cn(
                   'rounded-md border px-3 py-2.5 text-[13px] font-bold transition-colors',
-                  fineness === String(f)
+                  fineness === deInput(f)
                     ? 'border-mint bg-mint/15 text-mint'
                     : 'border-border bg-surface text-text-secondary hover:border-border-strong',
                 )}
               >
-                {f}
+                {fineLabel(f)}
               </button>
             ))}
             <input
               value={fineness}
-              inputMode="numeric"
-              onChange={(e) => setFineness(e.target.value.replace(/[^\d]/g, ''))}
+              inputMode="decimal"
+              onChange={(e) => setFineness(e.target.value.replace(/[^\d.,]/g, ''))}
               className="input [color-scheme:dark] max-w-[90px]"
-              placeholder="999"
+              placeholder="999,9"
             />
           </div>
         </div>

@@ -15,10 +15,26 @@ import {
   formatEUR,
   formatEURSigned,
   formatGrams,
+  formatGramsFine,
   formatHoldingDuration,
   formatPercent,
   formatPricePerGram,
 } from '../lib/format'
+
+/** Feingehalt deutsch: 999,9 ‰ (bis 1 Nachkommastelle). */
+function fineFmt(f: number): string {
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(f)
+}
+
+/** „Stand"-Text für den Kurs: echte Quote-Zeit, Markt-geschlossen-/Schlusskurs-Hinweis. */
+function priceStand(h: MetalHolding): string | null {
+  if (!h.has_market_price) return 'kein Live-Kurs'
+  if (!h.price_time) return null // kein erfundener Zeitstempel
+  const when = formatDateTime(h.price_time)
+  if (!h.price_is_live) return `Schlusskurs vom ${when}`
+  const closed = h.price_market_state && h.price_market_state !== 'REGULAR'
+  return `Stand: ${when}${closed ? ' (Markt geschlossen)' : ''}`
+}
 
 export function PhysicalDetail() {
   const { metal = '' } = useParams()
@@ -102,7 +118,7 @@ export function PhysicalDetail() {
 
   const up = holding.unrealized_pnl >= 0
   const finenessValues = Array.from(new Set(holding.positions.map((p) => p.fineness)))
-  const finenessLabel = finenessValues.length === 1 ? `${finenessValues[0]} ‰` : 'gemischt'
+  const finenessLabel = finenessValues.length === 1 ? `${fineFmt(finenessValues[0])} ‰` : 'gemischt'
   const chartHasData = history.length > 1
 
   return (
@@ -167,17 +183,12 @@ export function PhysicalDetail() {
           <Overline>Auswertung</Overline>
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
             <Field label="Menge" value={formatGrams(holding.gross_grams)} />
-            <Field label="Feinmenge" value={formatGrams(holding.fine_grams)} />
+            <Field label="Feinmenge" value={formatGramsFine(holding.fine_grams)} />
             <Field label="Feingehalt" value={finenessLabel} />
             <Field
               label="Kurs (€/g)"
               value={formatPricePerGram(holding.price_per_gram)}
-              hint={
-                holding.has_market_price
-                  ? `Stand: ${formatDateTime(holding.price_timestamp)}${holding.price_stale ? ' · verzögert' : ''}`
-                  : 'kein Live-Kurs'
-              }
-              hintWarn={holding.price_stale || !holding.has_market_price}
+              hint={priceStand(holding) ?? undefined}
             />
             <Field label="Kurs (€/oz)" value={formatEUR(holding.price_per_ounce)} />
             <Field label="Gesamtwert" value={formatEUR(holding.current_value)} />
@@ -215,7 +226,7 @@ export function PhysicalDetail() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="tnum text-[15px] font-bold text-text-primary">
-                      {formatGrams(p.gross_grams)} · {p.fineness} ‰
+                      {formatGrams(p.gross_grams)} · {fineFmt(p.fineness)} ‰
                     </div>
                     <div className="text-[12px] text-text-muted">
                       Kauf am {formatDate(p.purchase_date)} · {formatEUR(p.purchase_price_eur)}

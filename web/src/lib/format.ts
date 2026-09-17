@@ -119,6 +119,15 @@ export function formatGrams(grams: number | null | undefined): string {
   return `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(grams)} g`
 }
 
+/** Feinmenge in Gramm mit hoher Präzision: 31,1004 g (bis 4 Nachkommastellen, kg ab 1000 g) */
+export function formatGramsFine(grams: number | null | undefined): string {
+  if (grams == null || Number.isNaN(grams)) return '–'
+  if (Math.abs(grams) >= 1000) {
+    return `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(grams / 1000)} kg`
+  }
+  return `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(grams)} g`
+}
+
 /** Kurs pro Gramm: passende Nachkommastellen (Gold ~€120/g, Kupfer ~€0,01/g) */
 export function formatPricePerGram(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '–'
