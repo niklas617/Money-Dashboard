@@ -29,11 +29,12 @@ function fineFmt(f: number): string {
 /** „Stand"-Text für den Kurs: echte Quote-Zeit, Markt-geschlossen-/Schlusskurs-Hinweis. */
 function priceStand(h: MetalHolding): string | null {
   if (!h.has_market_price) return 'kein Live-Kurs'
-  if (!h.price_time) return null // kein erfundener Zeitstempel
+  const src = h.price_source === 'future' ? ' · Future (≈ Spot)' : ''
+  if (!h.price_time) return h.price_source === 'future' ? 'Future (≈ Spot)' : null
   const when = formatDateTime(h.price_time)
-  if (!h.price_is_live) return `Schlusskurs vom ${when}`
+  if (!h.price_is_live) return `Schlusskurs vom ${when}${src}`
   const closed = h.price_market_state && h.price_market_state !== 'REGULAR'
-  return `Stand: ${when}${closed ? ' (Markt geschlossen)' : ''}`
+  return `Stand: ${when}${closed ? ' (Markt geschlossen)' : ''}${src}`
 }
 
 export function PhysicalDetail() {
@@ -46,6 +47,7 @@ export function PhysicalDetail() {
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState<Range>('1J')
   const [history, setHistory] = useState<PhysicalPricePoint[]>([])
+  const [derived, setDerived] = useState(false)
   const [histLoading, setHistLoading] = useState(true)
   const [editPos, setEditPos] = useState<PhysicalEditTarget | null>(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -68,9 +70,11 @@ export function PhysicalDetail() {
     setHistLoading(true)
     try {
       const h = await api.physicalPriceHistory(metalKey, range)
-      setHistory(h)
+      setHistory(h.points ?? [])
+      setDerived(!!h.derived)
     } catch {
       setHistory([])
+      setDerived(false)
     } finally {
       setHistLoading(false)
     }
@@ -174,6 +178,11 @@ export function PhysicalDetail() {
               </div>
             )}
           </div>
+          {derived && chartHasData && (
+            <p className="mt-2 text-[11px] text-text-muted">
+              Historie abgeleitet · auf aktuellen Spot normalisiert
+            </p>
+          )}
         </Card>
       </FadeIn>
 
@@ -201,6 +210,13 @@ export function PhysicalDetail() {
               hint={formatPercent(holding.unrealized_pnl_pct)}
               hintColor={up ? 'text-mint' : 'text-negative'}
             />
+            {holding.premium_eur != null && (
+              <Field
+                label="Aufgeld"
+                value={`${formatEUR(holding.premium_eur)} · ${formatPercent(holding.premium_pct ?? 0, false)}`}
+                hint={holding.premium_source === 'manual' ? 'manuell' : undefined}
+              />
+            )}
             <Field label="Haltedauer" value={formatHoldingDuration(holding.earliest_purchase_date)} />
           </div>
         </Card>
@@ -252,6 +268,8 @@ export function PhysicalDetail() {
                           purchase_date: p.purchase_date,
                           storage_location: p.storage_location,
                           note: p.note,
+                          purchase_spot_eur_per_gram: p.purchase_spot_eur_per_gram,
+                          purchase_spot_source: p.purchase_spot_source,
                         })
                       }
                       className="flex h-8 w-8 items-center justify-center rounded-sm text-text-muted transition-colors hover:bg-surface-high hover:text-info"

@@ -214,6 +214,8 @@ export type PhysicalPosition = {
   purchase_date: string | null
   storage_location: string | null
   note: string | null
+  purchase_spot_eur_per_gram: number | null
+  purchase_spot_source: string | null
 }
 
 export type MetalHolding = {
@@ -231,8 +233,13 @@ export type MetalHolding = {
   price_time: string | null
   price_is_live: boolean
   price_market_state: string | null
+  price_source: string | null
   has_market_price: boolean
   avg_cost_per_fine_gram: number
+  premium_eur: number | null
+  premium_pct: number | null
+  premium_source: string | null
+  premium_covered_positions: number
   earliest_purchase_date: string | null
   position_count: number
   allocation_pct: number
@@ -248,6 +255,7 @@ export type PhysicalSummary = {
 }
 
 export type PhysicalPricePoint = { date: string; value: number }
+export type PhysicalPriceHistory = { points: PhysicalPricePoint[]; derived: boolean }
 
 export type PhysicalAssetInput = {
   metal: string
@@ -259,6 +267,7 @@ export type PhysicalAssetInput = {
   purchase_date: string
   storage_location?: string | null
   note?: string | null
+  manual_spot_eur_per_gram?: number | null
 }
 
 export type PhysicalTemplate = {
@@ -326,7 +335,7 @@ export const api = {
   // Physische Werte (Edelmetalle)
   physicalSummary: (signal?: AbortSignal) => request<PhysicalSummary>('/physical/summary', { signal }),
   physicalPriceHistory: (metal: string, range: string, signal?: AbortSignal) =>
-    request<PhysicalPricePoint[]>(`/physical/price-history${qs({ metal, range })}`, { signal }),
+    request<PhysicalPriceHistory>(`/physical/price-history${qs({ metal, range })}`, { signal }),
   getMetals: (signal?: AbortSignal) => request<MetalOption[]>('/physical/metals', { signal }),
   getPhysicalTemplates: (signal?: AbortSignal) =>
     request<PhysicalTemplate[]>('/physical/templates', { signal }),

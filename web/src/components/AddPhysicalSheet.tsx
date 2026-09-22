@@ -22,6 +22,8 @@ export type PhysicalEditTarget = {
   purchase_date: string | null
   storage_location: string | null
   note: string | null
+  purchase_spot_eur_per_gram?: number | null
+  purchase_spot_source?: string | null
 }
 
 const UNITS: { value: string; label: string }[] = [
@@ -58,7 +60,15 @@ export function AddPhysicalSheet({
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [storage, setStorage] = useState('')
   const [note, setNote] = useState('')
+  const [manualSpot, setManualSpot] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Kauf älter als ~30 Tage? Dann ist kein Auto-Spot verfügbar -> manuelles Feld anbieten.
+  const olderThan30 = (() => {
+    const d = new Date(date)
+    if (Number.isNaN(d.getTime())) return false
+    return (Date.now() - d.getTime()) / 86400000 > 30
+  })()
 
   // Metall-Liste + Vorlagen laden
   useEffect(() => {
@@ -94,6 +104,11 @@ export function AddPhysicalSheet({
       setDate((edit.purchase_date || new Date().toISOString()).slice(0, 10))
       setStorage(edit.storage_location || '')
       setNote(edit.note || '')
+      setManualSpot(
+        edit.purchase_spot_source === 'manual' && edit.purchase_spot_eur_per_gram
+          ? deInput(edit.purchase_spot_eur_per_gram)
+          : '',
+      )
     } else {
       setMetalSel('XAU')
       setCustomName('')
@@ -105,6 +120,7 @@ export function AddPhysicalSheet({
       setDate(new Date().toISOString().slice(0, 10))
       setStorage('')
       setNote('')
+      setManualSpot('')
     }
   }, [open, edit])
 
@@ -146,6 +162,7 @@ export function AddPhysicalSheet({
       purchase_date: `${date}T12:00:00`,
       storage_location: storage.trim() || null,
       note: note.trim() || null,
+      manual_spot_eur_per_gram: manualSpot.trim() ? parseAmount(manualSpot) : null,
     }
 
     setSaving(true)
@@ -326,6 +343,25 @@ export function AddPhysicalSheet({
             className="input [color-scheme:dark]"
           />
         </label>
+
+        {/* Spotkurs zum Kaufdatum – nur nötig, wenn Kauf älter als 30 Tage (kein Auto-Spot) */}
+        {olderThan30 && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-semibold text-text-secondary">
+              Spotkurs zum Kaufdatum (€/g) <span className="font-normal text-text-muted">(optional)</span>
+            </span>
+            <input
+              value={manualSpot}
+              inputMode="decimal"
+              onChange={(e) => setManualSpot(e.target.value)}
+              placeholder="z. B. 58,20"
+              className="input [color-scheme:dark]"
+            />
+            <span className="text-[11px] text-text-muted">
+              Für Käufe älter als 30 Tage – daraus wird das Aufgeld berechnet (dezent als „manuell").
+            </span>
+          </label>
+        )}
 
         {/* Lagerort (optional) */}
         <label className="flex flex-col gap-1.5">
