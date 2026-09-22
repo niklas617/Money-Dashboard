@@ -88,6 +88,15 @@ def _run_light_migrations() -> None:
                     ))
                 break
 
+    # physicalasset: Spot-zum-Kaufdatum (Aufgeld) nachruesten
+    if "physicalasset" in tables:
+        cols = {c["name"] for c in insp.get_columns("physicalasset")}
+        with engine.begin() as conn:
+            if "purchase_spot_eur_per_gram" not in cols:
+                conn.execute(text("ALTER TABLE physicalasset ADD COLUMN purchase_spot_eur_per_gram FLOAT"))
+            if "purchase_spot_source" not in cols:
+                conn.execute(text("ALTER TABLE physicalasset ADD COLUMN purchase_spot_source VARCHAR"))
+
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)

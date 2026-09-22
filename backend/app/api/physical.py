@@ -179,8 +179,29 @@ def _live_price_eur_per_gram(metal: str) -> dict:
 
 
 def fetch_metal_prices(metals: List[str]) -> Dict[str, dict]:
-    """Kurse (EUR/Gramm etc.) fuer eine Liste bekannter Metalle."""
-    return {m: _live_price_eur_per_gram(m) for m in set(metals) if m in METALS}
+    """Aktuelle Kurse (EUR/Gramm etc.) je Metall: echter SPOT (metals.dev) mit
+    Future-Fallback, falls Spot nicht verfuegbar (kein Key/Limit/Fehler)."""
+    from backend.app.api import metals_provider
+    wanted = [m for m in set(metals) if m in METALS]
+    spot = metals_provider.get_current_spot(wanted)
+    result: Dict[str, dict] = {}
+    for m in wanted:
+        if m in spot:
+            ppg = spot[m]["price_per_gram"]
+            result[m] = {
+                "price_per_gram": ppg,
+                "price_per_ounce": ppg * GRAMS_PER_TROY_OUNCE,
+                "quote_time": spot[m].get("quote_time"),
+                "market_state": None,
+                "is_live": True,
+                "source": "spot",
+                "has_market_price": True,
+            }
+        else:
+            f = _live_price_eur_per_gram(m)  # Future (GC=F etc.)
+            f["source"] = "future"
+            result[m] = f
+    return result
 
 
 def fetch_metal_price_history(metals: List[str], start_date) -> Dict[str, Dict[str, float]]:
@@ -325,6 +346,8 @@ def compute_physical_summary(assets: List[PhysicalAsset], price_map: Dict[str, d
             "purchase_date": date_iso,
             "storage_location": a.storage_location or None,
             "note": a.note or None,
+            "purchase_spot_eur_per_gram": a.purchase_spot_eur_per_gram,
+            "purchase_spot_source": a.purchase_spot_source,
         })
 
     metals_out: List[dict] = []
@@ -345,6 +368,7 @@ def compute_physical_summary(assets: List[PhysicalAsset], price_map: Dict[str, d
             price_time = pinfo.get("quote_time")
             price_is_live = bool(pinfo.get("is_live", False))
             price_market_state = pinfo.get("market_state")
+            price_source = pinfo.get("source")  # "spot" | "future"
             has_market_price = True
         else:
             # Kein Marktkurs -> Einstand als Wert (P&L 0), kein Zeitstempel.
@@ -353,7 +377,29 @@ def compute_physical_summary(assets: List[PhysicalAsset], price_map: Dict[str, d
             price_time = None
             price_is_live = False
             price_market_state = None
+            price_source = None
             has_market_price = False
+
+        # --- Aufgeld: Kaufpreis - Spotwert der Feinmenge zum Kaufdatum (nur wo Spot bekannt) ---
+        premium_sum = 0.0
+        spot_cost_sum = 0.0
+        premium_positions = 0
+        premium_sources = set()
+        for p in g["positions"]:
+            ps = p.get("purchase_spot_eur_per_gram")
+            if ps and ps > 0:
+                premium_positions += 1
+                premium_sources.add(p.get("purchase_spot_source") or "auto")
+                sc = p["fine_grams"] * ps
+                spot_cost_sum += sc
+                premium_sum += (p["purchase_price_eur"] - sc)
+        has_premium = premium_positions > 0
+        premium_pct = (premium_sum / spot_cost_sum * 100.0) if spot_cost_sum > 1e-9 else 0.0
+        premium_source = (
+            "manual" if premium_sources == {"manual"}
+            else "auto" if premium_sources == {"auto"}
+            else "mixed" if premium_sources else None
+        )
 
         current_value = fine * price_per_gram
         pnl = current_value - cost
@@ -374,8 +420,13 @@ def compute_physical_summary(assets: List[PhysicalAsset], price_map: Dict[str, d
             "price_time": price_time,
             "price_is_live": price_is_live,
             "price_market_state": price_market_state,
+            "price_source": price_source,
             "has_market_price": has_market_price,
             "avg_cost_per_fine_gram": round(avg_cost_per_fine_gram, 4),
+            "premium_eur": round(premium_sum, 2) if has_premium else None,
+            "premium_pct": round(premium_pct, 2) if has_premium else None,
+            "premium_source": premium_source,
+            "premium_covered_positions": premium_positions,
             "earliest_purchase_date": g["earliest_date"],
             "position_count": len(g["positions"]),
             "positions": sorted(g["positions"], key=lambda p: (p["purchase_date"] or "")),
@@ -405,6 +456,51 @@ def gross_grams_round(g: float) -> float:
 # ==========================================
 # VALIDIERUNG
 # ==========================================
+
+def _set_purchase_spot(asset: PhysicalAsset, manual_value: Optional[float]) -> None:
+    """Setzt den Spotkurs (EUR/g) zum Kaufdatum fuers Aufgeld.
+
+    Auto (metals.dev, nur Kauf <=30 Tage her) hat Vorrang und wird NIE durch den
+    manuellen Wert ueberschrieben. Fuer aeltere Kaeufe zaehlt der manuelle Wert.
+    historical_spot_at ruft die API nur im 30-Tage-Fenster auf (sonst 0 Kontingent).
+    """
+    if asset.purchase_spot_source == "auto" and asset.purchase_spot_eur_per_gram:
+        return
+    from backend.app.api import metals_provider
+    day = asset.purchase_date.date() if asset.purchase_date else None
+    auto = metals_provider.historical_spot_at(asset.metal, day) if (day and asset.metal in METALS) else None
+    if auto and auto > 0:
+        asset.purchase_spot_eur_per_gram = auto
+        asset.purchase_spot_source = "auto"
+    elif manual_value is not None:
+        if manual_value and manual_value > 0:
+            asset.purchase_spot_eur_per_gram = manual_value
+            asset.purchase_spot_source = "manual"
+        else:
+            asset.purchase_spot_eur_per_gram = None
+            asset.purchase_spot_source = None
+
+
+def _backfill_purchase_spots(assets: List[PhysicalAsset], session: Session) -> None:
+    """Zieht den Aufgeld-Spot fuer Bestandspositionen nach, die noch im 30-Tage-
+    Fenster liegen (z. B. vor dem Feature angelegt). historical_spot_at ruft die
+    API nur im Fenster auf; ausserhalb kostet es kein Kontingent."""
+    today = datetime.utcnow().date()
+    dirty = False
+    for a in assets:
+        if a.purchase_spot_eur_per_gram is None and a.metal in METALS and a.purchase_date:
+            d = a.purchase_date.date()
+            if 0 <= (today - d).days <= 30:
+                from backend.app.api import metals_provider
+                v = metals_provider.historical_spot_at(a.metal, d)
+                if v and v > 0:
+                    a.purchase_spot_eur_per_gram = v
+                    a.purchase_spot_source = "auto"
+                    session.add(a)
+                    dirty = True
+    if dirty:
+        session.commit()
+
 
 def _validate(quantity=None, unit=None, fineness=None, purchase_price_eur=None, purchase_date=None):
     if quantity is not None and quantity <= 0:
@@ -458,6 +554,15 @@ def list_templates(current_user: User = Depends(get_current_user)):
     return COIN_TEMPLATES
 
 
+@router.get("/usage")
+def spot_usage(current_user: User = Depends(get_current_user)):
+    """metals.dev-Kontingent dieses Monats + ob eine Spot-Quelle konfiguriert ist."""
+    from backend.app.api import metals_provider
+    st = metals_provider.usage_status()
+    st["spot_configured"] = metals_provider.is_configured()
+    return st
+
+
 @router.get("/summary")
 def get_physical_summary(
     session: Session = Depends(get_session),
@@ -474,6 +579,7 @@ def get_physical_summary(
             "total_unrealized_pnl": 0.0,
             "total_unrealized_pnl_pct": 0.0,
         }
+    _backfill_purchase_spots(assets, session)
     distinct_metals = [a.metal for a in assets]
     price_map = fetch_metal_prices(distinct_metals)
     return compute_physical_summary(assets, price_map)
@@ -490,7 +596,7 @@ def get_price_history(
     conf = METALS.get(metal)
     if not conf:
         # Freitext-Metall ohne Marktkurs -> kein Verlauf.
-        return []
+        return {"points": [], "derived": False}
 
     period, interval = RANGE_PARAMS[_norm_range(range)]
     quote_grams = conf["quote_grams"]
@@ -498,9 +604,9 @@ def get_price_history(
     try:
         hist = yf.Ticker(conf["ticker"]).history(period=period, interval=interval)
     except Exception:
-        return []
+        return {"points": [], "derived": False}
     if hist.empty:
-        return []
+        return {"points": [], "derived": False}
 
     start_str = hist.index[0].strftime("%Y-%m-%d")
     end_str = (datetime.utcnow()).strftime("%Y-%m-%d")
@@ -519,7 +625,26 @@ def get_price_history(
             continue
         if eur_per_gram > 0:
             out.append({"date": date_str, "value": round(eur_per_gram, 6)})
-    return out
+
+    if not out:
+        return {"points": [], "derived": False}
+
+    # Normalisierung auf echten Spot: Basis = aktueller Spot - letzter Future-Punkt,
+    # auf die ganze Historie addiert -> rechtes Chart-Ende = exakt der Spotpreis.
+    # Kein Rollover-Sprung. Nur Anzeige – Wert/P&L/Aufgeld kommen aus echtem Spot.
+    derived = False
+    try:
+        from backend.app.api import metals_provider
+        spot = metals_provider.get_current_spot([metal]).get(metal)
+        ppg = float(spot["price_per_gram"]) if spot else 0.0
+        if ppg > 0:
+            basis = ppg - out[-1]["value"]
+            out = [{"date": p["date"], "value": round(p["value"] + basis, 6)} for p in out]
+            derived = True
+    except Exception:
+        pass
+
+    return {"points": out, "derived": derived}
 
 
 @router.get("/")
@@ -563,6 +688,9 @@ def create_physical_asset(
         note=(data.note or None),
         user_id=current_user.id,
     )
+    # Aufgeld-Spot direkt beim Anlegen ermitteln (sonst rutscht ein knapp im
+    # Fenster liegender Kauf raus, bevor er je abgefragt wurde).
+    _set_purchase_spot(asset, data.manual_spot_eur_per_gram)
     session.add(asset)
     session.commit()
     session.refresh(asset)
@@ -611,6 +739,13 @@ def update_physical_asset(
         asset.storage_location = data.storage_location.strip() or None
     if data.note is not None:
         asset.note = data.note.strip() or None
+
+    # Aufgeld-Spot: bei geaendertem Kaufdatum neu bestimmen; sonst manuellen Wert
+    # setzen (Auto bleibt unangetastet und hat Vorrang).
+    if data.purchase_date is not None:
+        asset.purchase_spot_eur_per_gram = None
+        asset.purchase_spot_source = None
+    _set_purchase_spot(asset, data.manual_spot_eur_per_gram)
 
     session.add(asset)
     session.commit()

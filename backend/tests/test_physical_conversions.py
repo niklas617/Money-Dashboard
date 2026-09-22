@@ -74,6 +74,43 @@ def test_no_rounding_in_value_chain():
     assert m["price_market_state"] == "REGULAR"
 
 
+def test_copper_tonne_and_toz_to_gram():
+    """Kupfer robust auf plausible €/g (0,001–0,1): aus €/Tonne und €/toz."""
+    from backend.app.api import metals_provider as mp
+    assert abs(mp._copper_eur_per_gram(9000.0) - 0.009) < 1e-9        # 9000 €/t -> 0,009 €/g
+    assert 0.011 < mp._copper_eur_per_gram(0.38) < 0.013             # 0,38 €/toz -> ~0,0122 €/g
+    assert mp._copper_eur_per_gram(999999.0) is None                 # unplausibel -> None
+
+
+def test_precious_toz_to_gram():
+    from backend.app.api import metals_provider as mp
+    assert abs(mp._to_eur_per_gram("XAU", 3742.0) - 3742.0 / OZ) < 1e-9
+
+
+def test_no_key_no_spot():
+    """Ohne METALS_DEV_API_KEY liefert der Provider keinen Spot (Future-Fallback greift)."""
+    import os
+    from backend.app.api import metals_provider as mp
+    os.environ.pop("METALS_DEV_API_KEY", None)
+    assert mp.get_current_spot(["XAU"]) == {}
+
+
+def test_aufgeld():
+    """Aufgeld = Kaufpreis - Feinmenge * Spot(Kaufdatum); neutral, aus echtem Spot."""
+    a = [PhysicalAsset(id=1, metal="XAU", name="Gold", quantity=1, unit="oz",
+                       fineness=999.9, purchase_price_eur=2000.0,
+                       purchase_date=datetime(2026, 9, 16),
+                       purchase_spot_eur_per_gram=60.0, purchase_spot_source="auto")]
+    price = {"XAU": {"price_per_gram": 120.0, "price_per_ounce": 120.0 * OZ,
+                     "quote_time": "2026-09-22T10:00:00+00:00", "is_live": True,
+                     "source": "spot", "has_market_price": True}}
+    m = compute_physical_summary(a, price)["metals"][0]
+    fine = 31.1034768 * 0.9999
+    assert m["premium_eur"] == round(2000.0 - fine * 60.0, 2)
+    assert m["premium_source"] == "auto"
+    assert m["price_source"] == "spot"
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

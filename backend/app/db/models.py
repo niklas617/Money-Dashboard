@@ -141,6 +141,10 @@ class PhysicalAsset(SQLModel, table=True):
     purchase_date: datetime = Field(default_factory=datetime.utcnow)
     storage_location: Optional[str] = Field(default=None)  # Lagerort (optional)
     note: Optional[str] = Field(default=None)              # Notiz (optional)
+    # Spotkurs (EUR/g) zum Kaufdatum – fuer das Aufgeld. Wird EINMAL ermittelt
+    # (auto beim Speichern, wenn Kauf <=30 Tage her; sonst manuell) und bleibt fix.
+    purchase_spot_eur_per_gram: Optional[float] = Field(default=None)
+    purchase_spot_source: Optional[str] = Field(default=None)  # "auto" | "manual"
     user_id: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
 
 
@@ -155,6 +159,8 @@ class PhysicalAssetCreate(SQLModel):
     storage_location: Optional[str] = None
     note: Optional[str] = None
     asset_class: str = "metal"
+    # Optionaler manueller Spotkurs (EUR/g) zum Kaufdatum (fuer Kaeufe > 30 Tage).
+    manual_spot_eur_per_gram: Optional[float] = None
 
 
 class PhysicalAssetUpdate(SQLModel):
@@ -167,4 +173,15 @@ class PhysicalAssetUpdate(SQLModel):
     purchase_date: Optional[datetime] = None
     storage_location: Optional[str] = None
     note: Optional[str] = None
+    manual_spot_eur_per_gram: Optional[float] = None
+
+
+# --- KEY/VALUE-CACHE (Kurs-Snapshots + Kontingent-Zaehler fuer externe APIs) ---
+# Schont das knappe metals.dev-Kontingent: der Spot-Snapshot wird zwischenge-
+# speichert und nur nach Ablauf der TTL (und nicht am Wochenende) neu geholt.
+
+class PriceCache(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    data: str                      # JSON-String
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
